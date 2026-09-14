@@ -1,4 +1,4 @@
-const CACHE_NAME = 'amplify-v3';
+const CACHE_NAME = 'amplify-v4';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
