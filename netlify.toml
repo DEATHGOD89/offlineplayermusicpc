@@ -2,6 +2,9 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  NETLIFY_FEEDBACK_DISABLED = "true"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

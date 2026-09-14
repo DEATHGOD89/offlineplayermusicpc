@@ -541,3 +541,26 @@ tr:hover .cloud-play-hover-btn {
 .mini-player-active .deck-action-deck {
   display: none !important; /* Hide settings slider on compact deck */
 }
+
+/* ==========================================================================
+   SUPPRESS NETLIFY HUD / POWERED BY NETLIFY BADGE
+   Prevents the floating iframe widget from covering mobile navigation or audio deck
+   ========================================================================== */
+#nl-badge-frame,
+iframe[id*="nl-badge"],
+iframe[title*="Powered by Netlify"],
+iframe[title*="Netlify"],
+[data-netlify-hud],
+#netlify-badge,
+.netlify-badge {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  position: absolute !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  z-index: -99999 !important;
+}
