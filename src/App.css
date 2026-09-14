@@ -234,6 +234,22 @@
   font-family: var(--font-display);
   font-size: 1.35rem;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.header-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.header-brand-logo-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .bento-search-box {
@@ -654,136 +670,6 @@
 .folder-card-meta p {
   font-size: 0.72rem;
   color: var(--text-dark);
-}
-
-/* ==========================================================================
-   COMPACT BOTTOM AUDIO DECK (Spotify Style, 68px height)
-   ========================================================================== */
-.crimson-audio-deck {
-  grid-column: 1 / span 2;
-  height: 68px;
-  background: rgba(30, 10, 13, 0.95);
-  backdrop-filter: var(--glass-blur);
-  border-top: 1px solid var(--glass-border);
-  padding: 0 1.5rem;
-  display: grid;
-  grid-template-columns: 260px 1fr 260px;
-  align-items: center;
-  gap: 1.5rem;
-  box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
-  z-index: 100;
-}
-
-.deck-track-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.deck-cover {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-  flex-shrink: 0;
-}
-
-.deck-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.deck-track-details {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  margin-right: 8px;
-}
-
-.deck-track-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.deck-track-artist {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.deck-heart-btn {
-  color: var(--text-dark);
-  transition: var(--transition-smooth);
-}
-
-.deck-heart-btn:hover {
-  color: var(--secondary);
-}
-
-.deck-player-controller {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.deck-buttons-row {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-}
-
-.deck-btn {
-  color: var(--text-dark);
-  transition: var(--transition-smooth);
-}
-
-.deck-btn:hover {
-  color: var(--text-main);
-}
-
-.deck-btn.active {
-  color: var(--secondary);
-}
-
-.deck-play-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--text-main);
-  color: var(--bg-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-}
-
-.deck-play-btn:hover {
-  background: var(--secondary);
-  color: var(--text-main);
-  transform: scale(1.08);
-}
-
-.deck-seeker-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  max-width: 480px;
-}
-
-.deck-time-lbl {
-  font-family: var(--font-display);
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: var(--text-dark);
-  min-width: 30px;
-}
-
-.deck-seeker-slider {
-  flex-grow: 1;
 }
 
 /* Custom Crimson Range Sliders */
@@ -1262,3 +1148,1652 @@ html, body,
   }
 }
 
+/* ==========================================================================
+   MOBILE BOTTOM NAVIGATION BAR (Base styles & Desktop Hidden)
+   ========================================================================== */
+.mobile-bottom-nav {
+  display: none; /* Hidden on desktop screens */
+}
+
+/* Legacy mobile media query removed — consolidated into master mobile responsive system at the bottom of the stylesheet */
+
+/* ==========================================================================
+   AMPLIFY LIQUID GLASSMORPHIC THEME SYSTEM
+   ========================================================================== */
+
+/* AMPLIFY Left Sidebar */
+.amplify-sidebar {
+  display: flex !important;
+  flex-direction: column !important;
+  background: rgba(18, 14, 25, 0.72) !important;
+  backdrop-filter: blur(36px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 28px !important;
+  padding: 1.4rem 1.1rem !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  gap: 1.15rem !important;
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.amplify-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 4px 4px;
+}
+
+.amplify-brand-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.amplify-brand-logo-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: transform 0.25s ease;
+}
+
+.amplify-brand-logo-img:hover {
+  transform: scale(1.08);
+}
+
+.header-brand-logo-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  margin-right: 2px;
+}
+
+.amplify-brand-logo {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.amplify-search-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.amplify-search-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Primary Navigation Menu */
+.amplify-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.amplify-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  width: 100%;
+  text-align: left;
+}
+
+.amplify-nav-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.amplify-nav-item.active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.amplify-badge-live {
+  font-size: 0.58rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-left: auto;
+  letter-spacing: 0.5px;
+}
+
+/* Sidebar Section Headers */
+.amplify-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.amplify-section-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  padding: 0 6px;
+}
+
+/* Mood Selector Grid */
+.amplify-mood-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.amplify-mood-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  transition: var(--transition-smooth);
+}
+
+.amplify-mood-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  transition: var(--transition-smooth);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.amplify-mood-item:hover .amplify-mood-badge {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.amplify-mood-item.active .amplify-mood-badge {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.4), 0 0 25px var(--secondary-glow);
+  transform: scale(1.05);
+}
+
+.amplify-mood-label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #94a3b8;
+  transition: color 0.2s ease;
+}
+
+.amplify-mood-item.active .amplify-mood-label {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Genre Filters Pill List */
+.amplify-genre-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.amplify-genre-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.amplify-genre-pill:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.amplify-genre-pill.active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.amplify-chevron {
+  transition: transform 0.2s ease;
+  color: #64748b;
+}
+
+.amplify-chevron.rotated {
+  transform: rotate(180deg);
+  color: #ffffff;
+}
+
+/* Bottom-Left Mini Album Preview Card */
+.amplify-mini-album-card {
+  margin-top: auto;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.amplify-mini-album-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+}
+
+.amplify-mini-cover {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  background: #0f172a;
+}
+
+.amplify-metallic-wave {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fluid-wave-svg {
+  width: 100%;
+  height: 100%;
+  opacity: 0.85;
+}
+
+.amplify-mini-meta {
+  display: flex;
+  flex-direction: column;
+  padding: 0 2px;
+}
+
+.amplify-mini-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.amplify-mini-artist {
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+
+/* ==========================================================================
+   AMPLIFY MAIN VIEWPORT & ACTIVE PLAYLIST HERO
+   ========================================================================== */
+.main-viewport {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  background: rgba(18, 14, 25, 0.65) !important;
+  backdrop-filter: blur(36px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(190%) !important;
+  border-radius: 28px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  padding: 0 !important;
+}
+
+.amplify-home-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem 1.25rem 2.5rem 1.25rem;
+  flex: 1 1 0%;
+  min-height: 0;
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Active Playlist Hero Banner */
+.amplify-playlist-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 1.75rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  gap: 1.5rem;
+  flex-shrink: 0 !important;
+  min-height: 165px;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.amplify-banner-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  z-index: 2;
+}
+
+.amplify-banner-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--secondary, #38bdf8);
+  text-transform: uppercase;
+}
+
+.amplify-banner-stats {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.amplify-banner-title {
+  font-family: var(--font-display) !important;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  margin: 2px 0 4px 0;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+  word-break: break-word;
+}
+
+.amplify-banner-subtitle {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-weight: 400;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.amplify-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.amplify-add-tracks-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  backdrop-filter: blur(10px);
+}
+
+.amplify-add-tracks-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.amplify-clear-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #fda4af;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.amplify-clear-pill-btn:hover {
+  background: rgba(244, 63, 94, 0.25);
+  color: #ffffff;
+}
+
+/* Large Right Artwork Card */
+.amplify-banner-artwork-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0 !important;
+  z-index: 2;
+}
+
+.amplify-banner-artwork-inner {
+  width: 135px;
+  height: 135px;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #090d16;
+  position: relative;
+}
+
+.amplify-metallic-hero-art {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: radial-gradient(circle at 70% 30%, #312e81 0%, #090d16 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.amplify-hero-label {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #ffffff;
+  line-height: 1.1;
+  z-index: 2;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.hero-wave-svg {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 75%;
+}
+
+.amplify-edit-cover-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.amplify-edit-cover-btn:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   AMPLIFY CONTROLS BAR
+   ========================================================================== */
+.amplify-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0 !important;
+}
+
+.amplify-controls-left,
+.amplify-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.amplify-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.amplify-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.amplify-pill-btn.active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.amplify-sort-arrows {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+/* ==========================================================================
+   AMPLIFY FROSTED TRACK ROWS
+   ========================================================================== */
+.amplify-track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.amplify-track-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  position: relative;
+}
+
+.amplify-track-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateX(3px);
+}
+
+.amplify-track-row.active {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.amplify-track-handle {
+  width: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.amplify-track-drag {
+  font-size: 1rem;
+  opacity: 0.6;
+}
+
+.amplify-track-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.amplify-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.amplify-thumb-playing-indicator {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.amplify-thumb-playing-indicator .bar {
+  width: 3px;
+  background: #38bdf8;
+  border-radius: 2px;
+  animation: barBounce 0.8s ease infinite alternate;
+}
+
+.amplify-thumb-playing-indicator .b1 { height: 12px; animation-delay: 0.1s; }
+.amplify-thumb-playing-indicator .b2 { height: 16px; animation-delay: 0.3s; }
+.amplify-thumb-playing-indicator .b3 { height: 8px; animation-delay: 0.5s; }
+
+@keyframes barBounce {
+  0% { transform: scaleY(0.3); }
+  100% { transform: scaleY(1); }
+}
+
+.amplify-track-meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.amplify-track-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.amplify-track-artist {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.amplify-track-duration {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+}
+
+.amplify-track-menu-container {
+  position: relative;
+}
+
+.amplify-track-menu-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.amplify-track-menu-btn:hover,
+.amplify-track-menu-btn.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.amplify-track-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 170px;
+  background: rgba(20, 16, 26, 0.95);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 100;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+}
+
+.amplify-track-popover button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.amplify-track-popover button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.amplify-track-popover button.delete-opt {
+  color: #f87171;
+}
+
+.amplify-track-popover button.delete-opt:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ffffff;
+}
+
+.amplify-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: #94a3b8;
+}
+
+.amplify-empty-state h3 {
+  color: #ffffff;
+  font-size: 1.1rem;
+  margin: 8px 0 4px 0;
+}
+
+.amplify-empty-state p {
+  font-size: 0.8rem;
+  max-width: 320px;
+}
+
+/* ==========================================================================
+   AMPLIFY AUDIO TIMELINE (BOTTOM PLAYER DOCK)
+   ========================================================================== */
+.amplify-audio-dock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 18px 12px 18px;
+  background: rgba(18, 14, 25, 0.88);
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0 0 28px 28px;
+  box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  margin-top: auto;
+}
+
+.amplify-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.amplify-timeline-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.amplify-timeline-now-playing {
+  color: #cbd5e1;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  font-size: 0.72rem;
+  max-width: 260px;
+}
+
+.amplify-timeline-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.amplify-dock-icon-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.amplify-dock-icon-btn:hover,
+.amplify-dock-icon-btn.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.amplify-dock-icon-btn.active {
+  color: #38bdf8;
+}
+
+/* Symmetric Waveform Canvas Wrapper */
+.audio-timeline-waveform-wrap {
+  width: 100%;
+  height: 48px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.audio-timeline-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Timeline Controls Row */
+.amplify-timeline-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.amplify-dock-time {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  min-width: 90px;
+  font-weight: 500;
+}
+
+.amplify-dock-time .sep {
+  opacity: 0.5;
+}
+
+.amplify-dock-time .total {
+  color: #64748b;
+}
+
+.amplify-dock-media-btns {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.amplify-media-btn {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  border-radius: 50%;
+}
+
+.amplify-media-btn:hover {
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.amplify-media-play-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  box-shadow: 0 4px 18px rgba(255, 255, 255, 0.4), 0 0 25px rgba(56, 189, 248, 0.4);
+}
+
+.amplify-media-play-circle:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 24px rgba(255, 255, 255, 0.6), 0 0 35px rgba(56, 189, 248, 0.6);
+}
+
+.amplify-dock-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 110px;
+  justify-content: flex-end;
+}
+
+.amplify-dock-vol-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.amplify-dock-vol-btn:hover {
+  color: #ffffff;
+}
+
+.amplify-volume-slider {
+  width: 80px;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.amplify-volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   MOBILE RESPONSIVE AMPLIFY PWA ADAPTATION
+   ========================================================================== */
+.amplify-mobile-filter-tray {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.amplify-mobile-mood-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: max-content;
+}
+
+.amplify-mobile-mood-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.amplify-mobile-mood-chip.active {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+}
+
+/* ==========================================================================
+   MASTER UNIFIED RESPONSIVE SYSTEM (Mobile <= 768px, Compact <= 400px, Tablet)
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* 1. Edge-to-edge Viewport and Containers */
+  .app-container {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .left-sidebar,
+  .left-sidebar.amplify-sidebar,
+  .toggle-sidebar-btn {
+    display: none !important;
+  }
+
+  .main-viewport {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    background: #0e0a14 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .background-video-layer {
+    display: none !important; /* Save massive GPU and battery on mobile devices */
+  }
+
+  /* 2. Responsive Mobile Header (Logo + Greeting top row, full-width search bottom row) */
+  .bento-header {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 8px 12px 6px 12px !important;
+    gap: 8px !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    background: rgba(14, 10, 20, 0.82) !important;
+    backdrop-filter: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    flex-shrink: 0 !important;
+    z-index: 10 !important;
+  }
+
+  .header-brand-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .header-brand-logo-img {
+    width: 26px !important;
+    height: 26px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .bento-header h2 {
+    font-size: 0.92rem !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    margin: 0 !important;
+  }
+
+  .header-action-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .header-icon-btn {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 10px !important;
+    padding: 0 !important;
+  }
+
+  .bento-search-box {
+    order: 3 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    padding: 7px 12px !important;
+    border-radius: 12px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    margin-top: 2px !important;
+    gap: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .bento-search-box input {
+    font-size: 0.8rem !important;
+    width: 100% !important;
+    color: #ffffff !important;
+  }
+
+  /* 3. Mobile Mood Tray */
+  .amplify-mobile-filter-tray {
+    padding: 6px 12px 6px 12px !important;
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    flex-shrink: 0 !important;
+    overflow-x: auto !important;
+  }
+
+  .amplify-mobile-mood-scroll {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    min-width: max-content !important;
+  }
+
+  .amplify-mobile-mood-chip {
+    padding: 4px 10px !important;
+    font-size: 0.7rem !important;
+    border-radius: 9999px !important;
+  }
+
+  /* 4. Scrollable Container for Discover & All Views */
+  .amplify-home-view,
+  .home-viewport-scroll {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 0.75rem 0.85rem calc(150px + env(safe-area-inset-bottom, 0px)) 0.85rem !important;
+    gap: 0.85rem !important;
+  }
+
+  /* 5. Discover Hero Banner on Mobile */
+  .amplify-playlist-banner {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0.95rem 1rem !important;
+    gap: 0.85rem !important;
+    border-radius: 18px !important;
+    min-height: 110px !important;
+    height: auto !important;
+    flex-shrink: 0 !important;
+    overflow: hidden !important;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  .amplify-banner-meta {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+    gap: 3px !important;
+    z-index: 2 !important;
+  }
+
+  .amplify-banner-tag {
+    display: inline-block !important;
+    font-size: 0.6rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 1.5px !important;
+    color: var(--secondary, #38bdf8) !important;
+    text-transform: uppercase !important;
+  }
+
+  .amplify-banner-stats {
+    display: block !important;
+    font-size: 0.7rem !important;
+    color: #94a3b8 !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .amplify-banner-title {
+    display: block !important;
+    font-family: var(--font-display) !important;
+    font-size: 1.35rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    margin: 2px 0 3px 0 !important;
+    color: #ffffff !important;
+    letter-spacing: -0.3px !important;
+    word-break: break-word !important;
+  }
+
+  .amplify-banner-subtitle {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    font-size: 0.74rem !important;
+    color: #94a3b8 !important;
+    margin-bottom: 6px !important;
+    line-height: 1.3 !important;
+  }
+
+  .amplify-banner-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin-top: 2px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .amplify-add-tracks-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 5px 12px !important;
+    border-radius: 9999px !important;
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    background: rgba(255, 255, 255, 0.14) !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    color: #ffffff !important;
+  }
+
+  .amplify-clear-pill-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 4px 10px !important;
+    border-radius: 9999px !important;
+    font-size: 0.65rem !important;
+    font-weight: 600 !important;
+  }
+
+  .amplify-banner-artwork-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    align-self: center !important;
+    z-index: 2 !important;
+  }
+
+  .amplify-banner-artwork-inner {
+    width: 80px !important;
+    height: 80px !important;
+    border-radius: 14px !important;
+    flex-shrink: 0 !important;
+    overflow: hidden !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  }
+
+  .amplify-edit-cover-btn {
+    display: none !important;
+  }
+
+  /* 6. Controls Bar (Single-line horizontal scroll) */
+  .amplify-controls-bar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding: 2px 0 4px 0 !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    flex-shrink: 0 !important;
+    width: 100% !important;
+  }
+
+  .amplify-controls-bar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .amplify-controls-left,
+  .amplify-controls-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .amplify-pill-btn {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding: 6px 12px !important;
+    font-size: 0.72rem !important;
+    border-radius: 9999px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  /* 7. Track Rows on Mobile */
+  .amplify-track-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+
+  .amplify-track-row {
+    padding: 8px 10px !important;
+    gap: 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .amplify-track-handle {
+    width: 18px !important;
+    font-size: 0.7rem !important;
+  }
+
+  .amplify-track-thumb {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .amplify-track-meta {
+    flex: 1 !important;
+    min-width: 0 !important;
+    gap: 2px !important;
+  }
+
+  .amplify-track-title {
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .amplify-track-artist {
+    font-size: 0.7rem !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .amplify-track-duration {
+    font-size: 0.7rem !important;
+  }
+
+  /* 8. Fixed Bottom Audio Dock */
+  .amplify-audio-dock {
+    position: fixed !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 0 !important;
+    right: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    padding: 6px 12px 6px 12px !important;
+    margin-bottom: 0 !important;
+    z-index: 999 !important;
+    background: rgba(14, 10, 20, 0.97) !important;
+    backdrop-filter: blur(28px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.6) !important;
+    gap: 2px !important;
+  }
+
+  .amplify-timeline-header {
+    padding: 0 2px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .amplify-timeline-label span:first-child {
+    font-size: 0.6rem !important;
+    letter-spacing: 1px !important;
+  }
+
+  .amplify-timeline-now-playing {
+    font-size: 0.68rem !important;
+    max-width: 170px !important;
+  }
+
+  .audio-timeline-waveform-wrap {
+    height: 24px !important;
+  }
+
+  .amplify-timeline-controls {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+
+  .amplify-dock-time {
+    font-size: 0.68rem !important;
+    min-width: 70px !important;
+  }
+
+  .amplify-dock-media-btns {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .amplify-media-btn {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .amplify-media-play-circle {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .amplify-dock-volume {
+    display: none !important;
+  }
+
+  /* 9. Native Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    background: rgba(12, 8, 16, 0.98) !important;
+    backdrop-filter: blur(32px) saturate(200%) !important;
+    -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    z-index: 1000 !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6) !important;
+  }
+
+  .mobile-nav-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: none !important;
+    border: none !important;
+    color: var(--text-dark) !important;
+    padding: 4px 0 !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    cursor: pointer !important;
+    transition: transform 0.1s ease, color 0.12s ease !important;
+    gap: 2px !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
+  }
+
+  .mobile-nav-item:active {
+    transform: scale(0.9) !important;
+  }
+
+  .mobile-nav-item span {
+    font-size: 0.62rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.2px !important;
+  }
+
+  .mobile-nav-item.active {
+    color: var(--secondary) !important;
+  }
+
+  .mobile-nav-item.active svg {
+    filter: drop-shadow(0 0 8px var(--secondary-glow)) !important;
+  }
+
+  /* 10. Grids, Folders & Equalizer for Mobile */
+  .songs-compact-grid,
+  .folders-collage-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .compact-song-card {
+    padding: 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .horizontal-scroll-row {
+    gap: 8px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .equalizer-view {
+    padding: 12px !important;
+    padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .equalizer-view > div[style*="gridTemplateColumns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 11. Mobile Toast Notifications */
+  .toast-stack-container {
+    bottom: calc(140px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 12px !important;
+    left: 12px !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  .premium-toast {
+    max-width: 100% !important;
+  }
+}
+
+/* 12. Compact Screen Adjustments (iPhone SE, Galaxy S compact, <= 400px) */
+@media (max-width: 400px) {
+  .amplify-playlist-banner {
+    padding: 0.85rem !important;
+    gap: 0.65rem !important;
+    min-height: 100px !important;
+  }
+
+  .amplify-banner-title {
+    font-size: 1.15rem !important;
+  }
+
+  .amplify-banner-artwork-inner {
+    width: 68px !important;
+    height: 68px !important;
+    border-radius: 12px !important;
+  }
+
+  .amplify-timeline-now-playing {
+    max-width: 130px !important;
+  }
+
+  .amplify-dock-media-btns {
+    gap: 6px !important;
+  }
+}
+
+/* 13. Tablet Devices (iPad / Android tablets 769px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-container {
+    grid-template-columns: 200px 1fr !important;
+    gap: 1rem !important;
+    padding: 1rem !important;
+  }
+
+  .amplify-banner-title {
+    font-size: 1.8rem !important;
+  }
+
+  .amplify-banner-artwork-inner {
+    width: 110px !important;
+    height: 110px !important;
+  }
+}
+
+
+
+/* Active State for Media Buttons (Shuffle / Repeat) */
+.amplify-media-btn.active {
+  color: var(--secondary) !important;
+  filter: drop-shadow(0 0 8px var(--secondary-glow));
+}
+
+.playlist-modal-item:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}

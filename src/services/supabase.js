@@ -90,23 +90,39 @@ export async function uploadSongToCloud(title, artist, album, genre, audioFile, 
   const sb = initSupabase();
   if (!sb) throw new Error("Supabase is not configured!");
 
+  // File size validation to prevent client freeze or storage blowup
+  const MAX_AUDIO_SIZE = 50 * 1024 * 1024; // 50MB
+  const MAX_COVER_SIZE = 5 * 1024 * 1024;   // 5MB
+
+  if (audioFile && audioFile.size > MAX_AUDIO_SIZE) {
+    throw new Error("Audio file exceeds maximum size limit of 50MB.");
+  }
+  if (coverFile && coverFile.size > MAX_COVER_SIZE) {
+    throw new Error("Cover image exceeds maximum size limit of 5MB.");
+  }
+
   try {
     // Check total cloud songs count to prevent exceeding free tier storage limits
     const { count, error: countError } = await sb
       .from('cloud_songs')
       .select('*', { count: 'exact', head: true });
 
-    if (!countError && count !== null && count >= 50) {
-      throw new Error("Cloud Storage Limit Reached (Max 50 songs). Please delete an existing track to free up space!");
+    const CLOUD_STORAGE_LIMIT = 250;
+    if (!countError && count !== null && count >= CLOUD_STORAGE_LIMIT) {
+      throw new Error(`Cloud Storage Limit Reached (Max ${CLOUD_STORAGE_LIMIT} songs). Please delete an existing track to free up space!`);
     }
 
     const songId = 'cloud-' + Math.random().toString(36).substring(2, 11);
     
-    // 1. Upload audio file to 'spoty-media' storage bucket
-    const audioPath = `songs/${songId}_audio.mp3`;
-    const { data: audioUpload, error: audioError } = await sb.storage
+    // 1. Dynamic MIME & extension detection for audio
+    const rawAudioExt = audioFile.name ? audioFile.name.split('.').pop().toLowerCase() : 'mp3';
+    const audioExt = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'webm'].includes(rawAudioExt) ? rawAudioExt : 'mp3';
+    const audioContentType = audioFile.type || 'audio/mpeg';
+    const audioPath = `songs/${songId}_audio.${audioExt}`;
+
+    const { error: audioError } = await sb.storage
       .from('spoty-media')
-      .upload(audioPath, audioFile, { contentType: 'audio/mpeg' });
+      .upload(audioPath, audioFile, { contentType: audioContentType, upsert: true });
 
     if (audioError) throw audioError;
 
@@ -117,13 +133,17 @@ export async function uploadSongToCloud(title, artist, album, genre, audioFile, 
 
     const audioUrl = audioUrlData.publicUrl;
 
-    // 2. Upload cover artwork if present
+    // 2. Upload cover artwork if present with dynamic extension
     let coverUrl = '';
     if (coverFile) {
-      const coverPath = `covers/${songId}_cover.jpg`;
-      const { data: coverUpload, error: coverError } = await sb.storage
+      const rawCoverExt = coverFile.name ? coverFile.name.split('.').pop().toLowerCase() : 'jpg';
+      const coverExt = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(rawCoverExt) ? rawCoverExt : 'jpg';
+      const coverContentType = coverFile.type || 'image/jpeg';
+      const coverPath = `covers/${songId}_cover.${coverExt}`;
+
+      const { error: coverError } = await sb.storage
         .from('spoty-media')
-        .upload(coverPath, coverFile, { contentType: 'image/jpeg' });
+        .upload(coverPath, coverFile, { contentType: coverContentType, upsert: true });
 
       if (coverError) throw coverError;
 
@@ -148,7 +168,7 @@ export async function uploadSongToCloud(title, artist, album, genre, audioFile, 
       uploader: uploaderName || 'Anonymous'
     };
 
-    const { data, error } = await sb
+    const { error } = await sb
       .from('cloud_songs')
       .insert([songMeta])
       .select();
@@ -176,10 +196,23 @@ export async function uploadSongToCloud(title, artist, album, genre, audioFile, 
 
 /**
  * Increments the global like counter for a shared Supabase song.
+ * Uses local tracking to debounce and avoid duplicate spam.
  */
 export async function likeCloudSong(songId) {
   const sb = initSupabase();
-  if (!sb) return;
+  if (!sb) return false;
+
+  const likedStorageKey = 'spoty_liked_cloud_ids';
+  let likedIds;
+  try {
+    likedIds = JSON.parse(localStorage.getItem(likedStorageKey) || '[]');
+  } catch {
+    likedIds = [];
+  }
+
+  if (likedIds.includes(songId)) {
+    return false; // Already liked by this device
+  }
 
   try {
     // 1. Fetch current likes
@@ -200,20 +233,32 @@ export async function likeCloudSong(songId) {
       .eq('id', songId);
 
     if (updateError) throw updateError;
+
+    likedIds.push(songId);
+    localStorage.setItem(likedStorageKey, JSON.stringify(likedIds));
+    return true;
   } catch (e) {
     console.error("Error incrementing Supabase likes:", e);
+    return false;
   }
 }
 
 /**
- * Deletes a song from the database and its assets from storage bucket.
+ * Deletes a song from the database and cleans up its assets from the storage bucket.
  */
 export async function deleteCloudSong(songId) {
   const sb = initSupabase();
   if (!sb) return;
 
   try {
-    // 1. Delete from database
+    // 1. Fetch song record to determine exact storage asset paths
+    const { data: songRecord } = await sb
+      .from('cloud_songs')
+      .select('url, cover_url')
+      .eq('id', songId)
+      .maybeSingle();
+
+    // 2. Delete from database
     const { error: dbError } = await sb
       .from('cloud_songs')
       .delete()
@@ -221,11 +266,23 @@ export async function deleteCloudSong(songId) {
 
     if (dbError) throw dbError;
 
-    // 2. Delete files from storage bucket
-    const audioPath = `songs/${songId}_audio.mp3`;
-    const coverPath = `covers/${songId}_cover.jpg`;
-    
-    await sb.storage.from('spoty-media').remove([audioPath, coverPath]);
+    // 3. Clean up exact files from storage bucket
+    const filesToRemove = [];
+    if (songRecord?.url) {
+      const match = songRecord.url.match(/spoty-media\/(.+)$/);
+      if (match) filesToRemove.push(decodeURIComponent(match[1]));
+    }
+    if (songRecord?.cover_url) {
+      const match = songRecord.cover_url.match(/spoty-media\/(.+)$/);
+      if (match) filesToRemove.push(decodeURIComponent(match[1]));
+    }
+
+    // Fallback standard paths if URL extraction didn't find specific paths
+    if (filesToRemove.length === 0) {
+      filesToRemove.push(`songs/${songId}_audio.mp3`, `covers/${songId}_cover.jpg`);
+    }
+
+    await sb.storage.from('spoty-media').remove(filesToRemove);
   } catch (e) {
     console.error("Error deleting Supabase cloud song:", e);
     throw e;

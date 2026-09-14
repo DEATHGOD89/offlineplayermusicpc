@@ -1,21 +1,36 @@
 const DB_NAME = 'SpotyDB';
 const DB_VERSION = 2;
 
+let dbPromise = null;
+
 /**
- * Initializes the IndexedDB database.
+ * Initializes the IndexedDB database using a singleton connection pool.
  * Creates 'songs', 'playlists', and 'backgrounds' object stores.
  */
 export function initDB() {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) {
+    return dbPromise;
+  }
+
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = (event) => {
       console.error('Database failed to open:', event.target.error);
+      dbPromise = null;
       reject(event.target.error);
     };
 
     request.onsuccess = (event) => {
-      resolve(event.target.result);
+      const db = event.target.result;
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
     };
 
     request.onupgradeneeded = (event) => {
@@ -37,6 +52,8 @@ export function initDB() {
       }
     };
   });
+
+  return dbPromise;
 }
 
 /**
@@ -100,6 +117,49 @@ export async function saveSong(song) {
 }
 
 /**
+ * Saves multiple songs to IndexedDB in a single batch transaction.
+ */
+export async function saveSongs(songs) {
+  if (!songs || songs.length === 0) return true;
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('songs', 'readwrite');
+    const store = transaction.objectStore('songs');
+
+    transaction.oncomplete = () => {
+      resolve(true);
+    };
+
+    transaction.onerror = () => {
+      reject(transaction.error);
+    };
+
+    const now = Date.now();
+    for (let i = 0; i < songs.length; i++) {
+      const song = songs[i];
+      const songData = {
+        id: song.id || `${now}-${i}`,
+        title: song.title || 'Untitled',
+        artist: song.artist || 'Unknown Artist',
+        album: song.album || 'Single',
+        genre: song.genre || 'Unknown',
+        duration: song.duration || 0,
+        audioBlob: song.audioBlob || null,
+        coverBlob: song.coverBlob || null,
+        url: song.url || null,
+        coverUrl: song.coverUrl || null,
+        isCloud: song.isCloud !== undefined ? song.isCloud : false,
+        coverGradient: song.coverGradient || null,
+        isFavorite: song.isFavorite !== undefined ? song.isFavorite : false,
+        isUserUpload: song.isUserUpload !== undefined ? song.isUserUpload : true,
+        addedAt: song.addedAt || now,
+      };
+      store.put(songData);
+    }
+  });
+}
+
+/**
  * Removes a song from IndexedDB.
  */
 export async function deleteSong(id) {
@@ -108,6 +168,26 @@ export async function deleteSong(id) {
     const transaction = db.transaction('songs', 'readwrite');
     const store = transaction.objectStore('songs');
     const request = store.delete(id);
+
+    request.onsuccess = () => {
+      resolve(true);
+    };
+
+    request.onerror = () => {
+      reject(request.error);
+    };
+  });
+}
+
+/**
+ * Clears all songs from IndexedDB object store in one atomic operation.
+ */
+export async function clearAllSongs() {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('songs', 'readwrite');
+    const store = transaction.objectStore('songs');
+    const request = store.clear();
 
     request.onsuccess = () => {
       resolve(true);
@@ -258,3 +338,30 @@ export async function deleteBackground(id) {
     };
   });
 }
+
+/**
+ * Completely purges all songs, playlists, and custom backgrounds from IndexedDB.
+ */
+export async function clearAllLocalData() {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    try {
+      const transaction = db.transaction(['songs', 'playlists', 'backgrounds'], 'readwrite');
+      transaction.objectStore('songs').clear();
+      transaction.objectStore('playlists').clear();
+      transaction.objectStore('backgrounds').clear();
+
+      transaction.oncomplete = () => {
+        resolve(true);
+      };
+
+      transaction.onerror = () => {
+        reject(transaction.error);
+      };
+    } catch (e) {
+      console.error('Error in clearAllLocalData:', e);
+      reject(e);
+    }
+  });
+}
+

@@ -1,31 +1,35 @@
 :root {
-  /* Dynamic Crimson & Peach Bento Palette */
-  --bg-primary: #150608;       /* Deep Burgundy Black */
-  --bg-secondary: #1e0a0d;     /* Deep Crimson Card */
-  --bg-tertiary: #2a1115;      /* Warm Crimson Highlight */
+  /* AMPLIFY Liquid Glassmorphic Palette (Wine-Red Glow & Midnight Blue Mesh) */
+  --bg-primary: #0a0d16;       /* Deep Midnight Dark */
+  --bg-secondary: #121724;     /* Frosted Slate Card */
+  --bg-tertiary: #1a2133;      /* Soft Frosted Highlight */
   
-  --primary: #8e2e3e;          /* Terracotta Crimson */
-  --primary-glow: rgba(142, 46, 62, 0.4);
-  --secondary: #f3735d;        /* Vivid Peach Orange */
-  --secondary-glow: rgba(243, 115, 93, 0.4);
-  --accent: #e2586e;           /* Rose Pink Accent */
+  --primary: #f43f5e;          /* Rose Pink Accent */
+  --primary-glow: rgba(244, 63, 94, 0.45);
+  --secondary: #38bdf8;        /* Vivid Cyan Blue Glow */
+  --secondary-glow: rgba(56, 189, 248, 0.45);
+  --accent: #c084fc;           /* Violet Lavender Glow */
+  --accent-glow: rgba(192, 132, 252, 0.35);
   
-  --text-main: #fdf6f6;
-  --text-muted: #b39b9e;
-  --text-dark: #755d60;
+  --text-main: #ffffff;
+  --text-muted: #94a3b8;
+  --text-dark: #64748b;
   
-  --glass-bg: rgba(30, 10, 13, 0.45);
-  --glass-border: rgba(255, 255, 255, 0.09);
-  --glass-highlight: rgba(255, 255, 255, 0.05);
-  --glass-blur: blur(16px) saturate(180%);
+  --glass-bg: rgba(16, 21, 33, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.13);
+  --glass-highlight: rgba(255, 255, 255, 0.18);
+  --glass-blur: blur(28px) saturate(190%);
+  --glass-row: rgba(255, 255, 255, 0.045);
+  --glass-row-hover: rgba(255, 255, 255, 0.09);
   
-  --shadow-premium: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
-  --shadow-glow: 0 0 30px rgba(243, 115, 93, 0.2);
+  --shadow-premium: 0 30px 80px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --shadow-glow: 0 0 35px rgba(56, 189, 248, 0.25);
   
+  --font-serif: 'Cinzel', -apple-system, serif;
   --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   
-  --transition-smooth: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   --transition-bounce: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -38,7 +42,12 @@
 }
 
 body {
-  background: var(--bg-primary);
+  background: 
+    radial-gradient(circle at 8% 15%, rgba(130, 24, 60, 0.55) 0%, transparent 45%),
+    radial-gradient(circle at 92% 40%, rgba(24, 75, 135, 0.55) 0%, transparent 50%),
+    radial-gradient(circle at 35% 85%, rgba(60, 20, 80, 0.4) 0%, transparent 50%),
+    #090c14;
+  background-attachment: fixed;
   color: var(--text-main);
   font-family: var(--font-body);
   overflow: hidden;
@@ -98,12 +107,33 @@ body {
 #root {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   background: transparent;
   padding: 1.5rem;
   overflow: hidden;
   position: relative;
   z-index: 1;
+}
+
+@media (max-width: 768px) {
+  body {
+    height: 100vh !important;
+    height: 100dvh !important;
+    width: 100vw !important;
+    overflow: hidden !important;
+  }
+
+  #root {
+    padding: 0 !important;
+    margin: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
 }
 
 .background-video-layer,
@@ -128,7 +158,9 @@ button {
   background: none;
   font-family: inherit;
   color: inherit;
-  transition: var(--transition-smooth);
+  transition: opacity 0.15s ease, transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button:focus {
@@ -223,11 +255,27 @@ h1, h2, h3, h4 {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.4s var(--transition-smooth) forwards;
+  animation: fadeIn 0.15s ease-out forwards;
 }
 
 .animate-slide-in {
-  animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.mobile-nav-item,
+.amplify-nav-item,
+.amplify-pill-btn,
+.amplify-track-row {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.amplify-home-view,
+.home-viewport-scroll,
+.folder-detail-view,
+.settings-panel {
+  transform: translateZ(0);
+  will-change: transform, opacity;
 }
 
 /* Bento Cover Art Generator fallbacks */

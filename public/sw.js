@@ -1,24 +1,30 @@
-const CACHE_NAME = 'spoty-v1';
-const ASSETS = [
-  '/',
-  '/index.html',
-  '/src/main.jsx',
-  '/src/App.jsx',
-  '/src/index.css',
-  '/manifest.json'
+const CACHE_NAME = 'amplify-v3';
+const PRECACHE_ASSETS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './favicon.svg',
+  './logo192.png',
+  './logo512.png'
 ];
 
-// Install Event - cache core static files
+// Install Event - Precache app shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
+      return Promise.allSettled(
+        PRECACHE_ASSETS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn('[SW] Precache failed for:', url, err);
+          })
+        )
+      );
     })
   );
   self.skipWaiting();
 });
 
-// Activate Event - clear old caches
+// Activate Event - Clean up obsolete caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -34,29 +40,54 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch Event - network first, fallback to cache
+// Fetch Event - Resilient offline strategy
 self.addEventListener('fetch', (event) => {
-  // We only cache GET requests
   if (event.request.method !== 'GET') return;
 
-  // Let IndexedDB audio requests pass normally without SW interference
-  if (event.request.url.startsWith('blob:')) return;
+  const url = new URL(event.request.url);
 
+  // Bypass internal blob URLs, chrome extensions, and range requests (audio streaming)
+  if (
+    url.protocol === 'blob:' || 
+    url.protocol === 'chrome-extension:' ||
+    event.request.headers.get('range')
+  ) {
+    return;
+  }
+
+  // Handle navigation requests (SPA HTML entry)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match('./index.html').then((match) => match || caches.match('/index.html'));
+        })
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for local assets and Google Fonts
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Cache new successful network responses
-        if (response.status === 200) {
-          const resClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, resClone);
-          });
-        }
-        return response;
-      })
-      .catch(() => {
-        // Offline: Fallback to cache
-        return caches.match(event.request);
-      })
+    caches.match(event.request).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type !== 'opaque') {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => null);
+
+      return cachedResponse || fetchPromise;
+    })
   );
 });
+

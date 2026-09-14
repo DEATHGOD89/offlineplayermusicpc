@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
-    "firebase": "^12.14.0",
     "jsmediatags": "^3.9.7",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",

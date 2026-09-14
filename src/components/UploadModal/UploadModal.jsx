@@ -1,32 +1,39 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, UploadCloud, Music, Folder, Image as ImageIcon, CheckCircle, Loader, Layers } from 'lucide-react';
 import jsmediatags from 'jsmediatags/dist/jsmediatags.min.js';
 import './UploadModal.css';
 import { uploadSongToCloud } from '../../services/supabase';
 
 const parseId3Tag = (file) => {
-  return new Promise((resolve) => {
-    jsmediatags.read(file, {
-      onSuccess: function (tag) {
-        let coverBlob = null;
-        if (tag.tags && tag.tags.picture) {
-          const { data, format } = tag.tags.picture;
-          const byteArray = new Uint8Array(data);
-          coverBlob = new Blob([byteArray], { type: format });
-        }
-        resolve({
-          title: tag.tags?.title,
-          artist: tag.tags?.artist,
-          album: tag.tags?.album,
-          genre: tag.tags?.genre,
-          coverBlob
+  return Promise.race([
+    new Promise((resolve) => {
+      try {
+        jsmediatags.read(file, {
+          onSuccess: function (tag) {
+            let coverBlob = null;
+            if (tag.tags && tag.tags.picture) {
+              const { data, format } = tag.tags.picture;
+              const byteArray = new Uint8Array(data);
+              coverBlob = new Blob([byteArray], { type: format });
+            }
+            resolve({
+              title: tag.tags?.title,
+              artist: tag.tags?.artist,
+              album: tag.tags?.album,
+              genre: tag.tags?.genre,
+              coverBlob
+            });
+          },
+          onError: function () {
+            resolve(null);
+          }
         });
-      },
-      onError: function () {
+      } catch {
         resolve(null);
       }
-    });
-  });
+    }),
+    new Promise((resolve) => setTimeout(() => resolve(null), 1500))
+  ]);
 };
 
 export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudConfigured, uploaderName }) {
@@ -61,14 +68,29 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudC
   const folderInputRef = useRef(null);
   const coverInputRef = useRef(null);
 
+  // Cleanup preview URL on unmount or change
+  useEffect(() => {
+    return () => {
+      if (coverPreview && coverPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(coverPreview);
+      }
+    };
+  }, [coverPreview]);
+
   if (!isOpen) return null;
 
   // --- SINGLE FILE METADATA PARSER ---
   const processAudioFile = async (selectedFile) => {
     if (!selectedFile) return;
 
-    if (!selectedFile.type.startsWith('audio/') && !selectedFile.name.endsWith('.mp3')) {
-      alert('Please upload a valid MP3 audio file.');
+    const isAudio = selectedFile.type.startsWith('audio/') || /\.(mp3|wav|m4a|flac|ogg|aac|webm)$/i.test(selectedFile.name);
+    if (!isAudio) {
+      alert('Please upload a valid audio file (MP3, WAV, M4A, FLAC, OGG).');
+      return;
+    }
+
+    if (selectedFile.size > 100 * 1024 * 1024) {
+      alert('Selected audio file exceeds 100MB limit. Please choose a smaller file.');
       return;
     }
 
@@ -85,7 +107,10 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudC
       if (tags.genre) setGenre(tags.genre);
       if (tags.coverBlob) {
         setCoverFile(tags.coverBlob);
-        setCoverPreview(URL.createObjectURL(tags.coverBlob));
+        setCoverPreview(prev => {
+          if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+          return URL.createObjectURL(tags.coverBlob);
+        });
       }
     } else {
       setTitle(cleanTitle);
@@ -95,19 +120,30 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudC
 
     const objectUrl = URL.createObjectURL(selectedFile);
     const tempAudio = new Audio(objectUrl);
-    tempAudio.addEventListener('loadedmetadata', () => {
-      setDuration(tempAudio.duration);
+    const cleanupAudio = () => {
       URL.revokeObjectURL(objectUrl);
-    });
+      tempAudio.removeEventListener('loadedmetadata', handleLoaded);
+      tempAudio.removeEventListener('error', handleError);
+    };
+    const handleLoaded = () => {
+      setDuration(tempAudio.duration || 180);
+      cleanupAudio();
+    };
+    const handleError = () => {
+      setDuration(180);
+      cleanupAudio();
+    };
+    tempAudio.addEventListener('loadedmetadata', handleLoaded);
+    tempAudio.addEventListener('error', handleError);
   };
 
   // --- BULK FOLDER SELECTION PARSER ---
   const handleFolderSelect = (e) => {
     const rawFiles = Array.from(e.target.files);
     
-    // Filter only MP3/audio files
+    // Filter audio files (case-insensitive)
     const audioFiles = rawFiles.filter(
-      (f) => f.name.endsWith('.mp3') || f.type.startsWith('audio/')
+      (f) => f.type.startsWith('audio/') || /\.(mp3|wav|m4a|flac|ogg|aac|webm)$/i.test(f.name)
     );
 
     // Extract all image files to look for cover art
@@ -154,8 +190,15 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudC
       alert('Please select an image file (PNG/JPG).');
       return;
     }
+    if (selectedCover.size > 10 * 1024 * 1024) {
+      alert('Cover image exceeds 10MB limit. Please choose a smaller image.');
+      return;
+    }
     setCoverFile(selectedCover);
-    setCoverPreview(URL.createObjectURL(selectedCover));
+    setCoverPreview(prev => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(selectedCover);
+    });
   };
 
   // Drag and Drop hooks (Single Song Only)
@@ -239,9 +282,10 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudC
         // --- Bulk Folder Save ---
         if (folderFiles.length === 0) return;
 
+        const songsToSave = [];
         for (let i = 0; i < folderFiles.length; i++) {
           const currentFile = folderFiles[i];
-          setSaveProgress(`Saving song ${i + 1} of ${folderFiles.length}...`);
+          setSaveProgress(`Processing track ${i + 1} of ${folderFiles.length}...`);
 
           const cleanTitle = currentFile.name
             .replace(/\.[^/.]+$/, '')
@@ -263,7 +307,7 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudC
             finalCoverBlob = siblingImage; // 2. Sibling directory cover.jpg
           }
           
-          const songData = {
+          songsToSave.push({
             id: `folder-${timeNow}-${i}`,
             title: tags?.title || cleanTitle,
             artist: tags?.artist || folderArtist.trim() || folderName || 'Local Folder Upload',
@@ -274,10 +318,11 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudC
             coverBlob: finalCoverBlob,
             isUserUpload: true,
             addedAt: timeNow
-          };
-
-          await onUploadSuccess(songData);
+          });
         }
+
+        setSaveProgress(`Saving ${songsToSave.length} tracks to library...`);
+        await onUploadSuccess(songsToSave);
       }
 
       setIsSuccess(true);
@@ -295,9 +340,12 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, isCloudC
   };
 
   const resetForm = () => {
+    setCoverPreview(prev => {
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return '';
+    });
     setFile(null);
     setCoverFile(null);
-    setCoverPreview('');
     setTitle('');
     setArtist('');
     setAlbum('');

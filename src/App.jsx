@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   Search, 
   Plus, 
@@ -14,47 +14,193 @@ import {
   Repeat, 
   Shuffle, 
   Sliders, 
-  Heart,
+  Heart, 
   Music, 
-  Folder,
-  Settings,
-  Bell,
-  Trash2,
-  X,
-  Home,
-  Disc,
-  User,
-  ListMusic,
-  Download,
-  Menu,
-  CheckCircle,
-  Globe,
-  Activity
+  Folder, 
+  Settings, 
+  Bell, 
+  Trash2, 
+  X, 
+  Home, 
+  ListMusic, 
+  Menu, 
+  CheckCircle, 
+  Globe, 
+  Activity,
+  Flame,
+  Zap,
+  Target,
+  Smile,
+  Moon,
+  Headphones,
+  Compass,
+  ChevronDown,
+  Edit3,
+  MoreHorizontal
 } from 'lucide-react';
 
 import UploadModal from './components/UploadModal/UploadModal';
 import { 
   getAllSongs, 
   saveSong, 
+  saveSongs,
   deleteSong, 
+  clearAllSongs,
   getAllPlaylists, 
   savePlaylist, 
   deletePlaylist,
   getAllBackgrounds,
   saveBackground,
-  deleteBackground
+  deleteBackground,
+  clearAllLocalData
 } from './services/db';
 import { seedInitialSongsIfEmpty } from './services/seeder';
 import {
   getCloudSongs,
-  uploadSongToCloud,
   likeCloudSong,
   deleteCloudSong,
   isSupabaseConfigured
 } from './services/supabase';
-import { generateCoverGradient } from './components/SongCard/SongCard';
 
 import './App.css';
+
+// Generates a dynamic gradient from text hashcode for covers & playlist tiles
+function generateCoverGradient(text) {
+  if (!text) return 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)';
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = text.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h1 = Math.abs(hash % 360);
+  const h2 = (h1 + 45) % 360;
+  return `linear-gradient(135deg, hsl(${h1}, 70%, 55%) 0%, hsl(${h2}, 80%, 45%) 100%)`;
+}
+
+// Safe prompt wrapper that never throws or blocks in webview / electron / restricted contexts
+const safePrompt = (message, defaultValue = '') => {
+  try {
+    if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+      return window.prompt(message, defaultValue);
+    }
+  } catch (e) {
+    console.debug("safePrompt: window.prompt is not available", e);
+  }
+  return null;
+};
+
+// ==========================================================================
+// AMPLIFY MOOD PRESETS FOR INTERACTIVE VIBE SELECTOR
+// ==========================================================================
+const MOOD_PRESETS = [
+  { id: 'Chill', label: 'Chill', icon: Flame, keywords: ['chill', 'ambient', 'lo-fi', 'relax', 'calm', 'soft', 'acoustic'] },
+  { id: 'Energetic', label: 'Energetic', icon: Zap, keywords: ['energy', 'energetic', 'rock', 'pop', 'dance', 'synthwave', 'fast', 'electronic'] },
+  { id: 'Focus', label: 'Focus', icon: Target, keywords: ['focus', 'study', 'classical', 'piano', 'instrumental', 'ambient'] },
+  { id: 'Nostalgic', label: 'Nostalgic', icon: Smile, keywords: ['nostalgic', 'retro', '80s', '90s', 'vintage', 'old', 'memory'] },
+  { id: 'Atmospheric', label: 'Atmospheric', icon: Headphones, keywords: ['atmospheric', 'space', 'dark', 'deep', 'cinematic', 'drone'] },
+  { id: 'Late Night', label: 'Late Night', icon: Moon, keywords: ['night', 'midnight', 'drive', 'neo-soul', 'jazz', 'r&b', 'dark'] },
+];
+
+// ==========================================================================
+// COMPONENT: WaveformTimeline (Live Interactive Symmetric Audio Waveform)
+// ==========================================================================
+function WaveformTimeline({ analyser, isPlaying, currentTime, duration, onSeek, isDocumentVisible = true }) {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const timeRef = useRef({ currentTime: 0, duration: 0 });
+
+  timeRef.current.currentTime = currentTime;
+  timeRef.current.duration = duration;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = (canvas.width = canvas.parentElement?.clientWidth || 300);
+    let height = (canvas.height = 44);
+
+    const handleResize = () => {
+      if (canvas && canvas.parentElement) {
+        width = canvas.width = canvas.parentElement.clientWidth;
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    const bufferLength = analyser?.current ? analyser.current.frequencyBinCount : 0;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const draw = () => {
+      if (!isDocumentVisible) return;
+      animRef.current = requestAnimationFrame(draw);
+
+      if (analyser?.current && isPlaying) {
+        analyser.current.getByteFrequencyData(dataArray);
+      }
+
+      ctx.clearRect(0, 0, width, height);
+
+      const barCount = Math.min(80, Math.max(30, Math.floor(width / 6.5)));
+      const barWidth = 2.5;
+      const gap = (width - (barCount * barWidth)) / Math.max(1, (barCount - 1));
+      const currT = timeRef.current.currentTime;
+      const durT = timeRef.current.duration;
+      const progress = durT > 0 ? currT / durT : 0;
+      const playedBars = Math.floor(progress * barCount);
+
+      const centerY = height / 2;
+
+      for (let i = 0; i < barCount; i++) {
+        let liveVal = 0;
+        if (analyser?.current && isPlaying && dataArray.length > 0) {
+          const dataIdx = Math.floor((i / barCount) * (bufferLength / 3));
+          liveVal = dataArray[dataIdx] || 0;
+        }
+
+        const normalized = Math.sin((i / barCount) * Math.PI) * 0.65 + 0.35;
+        const liveAmp = (liveVal / 255) * 0.55;
+        const barHeight = Math.max(4, (normalized + liveAmp) * (height * 0.42));
+
+        const isPlayed = i <= playedBars;
+        ctx.fillStyle = isPlayed ? '#ffffff' : 'rgba(148, 163, 184, 0.28)';
+
+        if (isPlayed) {
+          ctx.shadowBlur = 6;
+          ctx.shadowColor = 'rgba(56, 189, 248, 0.6)';
+        } else {
+          ctx.shadowBlur = 0;
+        }
+
+        const x = i * (barWidth + gap);
+        ctx.beginPath();
+        ctx.roundRect(x, centerY - barHeight, barWidth, barHeight * 2, 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    };
+
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [analyser, isPlaying, isDocumentVisible]);
+
+  const handleCanvasClick = (e) => {
+    if (!duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    onSeek({ target: { value: ratio * duration } });
+  };
+
+  return (
+    <div className="audio-timeline-waveform-wrap" onClick={handleCanvasClick}>
+      <canvas ref={canvasRef} className="audio-timeline-canvas" />
+    </div>
+  );
+}
 
 // ==========================================================================
 // SYNCHRONOUS CACHE & UTILITY ENGINE: Eliminates image/audio flickering & visual lag
@@ -73,7 +219,8 @@ const formatTime = (secs) => {
 
 const getCoverUrl = (track) => {
   if (!track) return null;
-  if (track.coverUrl) return track.coverUrl; // Firebase Cloud Image URL
+  if (track.coverUrl) return track.coverUrl;
+  if (track.cover_url) return track.cover_url;
   if (!track.coverBlob) return null;
   if (!coverUrlCache.has(track.id)) {
     coverUrlCache.set(track.id, URL.createObjectURL(track.coverBlob));
@@ -121,6 +268,24 @@ const clearCoverCaches = () => {
   customBgUrlCache.clear();
 };
 
+const revokeTrackUrls = (trackId) => {
+  if (coverUrlCache.has(trackId)) {
+    const url = coverUrlCache.get(trackId);
+    if (url && typeof url === 'string' && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+    coverUrlCache.delete(trackId);
+  }
+  if (audioUrlCache.has(trackId)) {
+    const url = audioUrlCache.get(trackId);
+    if (url && typeof url === 'string' && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+    audioUrlCache.delete(trackId);
+  }
+};
+
+
 // ==========================================================================
 // COMPONENT: TrackCover (Synchronous, zero-flicker, memory-leak-safe cover art)
 // ==========================================================================
@@ -128,16 +293,32 @@ function TrackCover({ track, className = "", size = "small" }) {
   const url = getCoverUrl(track);
 
   if (url) {
-    return <img src={url} alt={track.title} className={className} />;
+    return (
+      <img 
+        src={url} 
+        alt={track.title} 
+        className={className} 
+        loading="lazy"
+        onError={(e) => {
+          e.currentTarget.style.display = 'none';
+        }}
+      />
+    );
   }
 
-  const grad = track.coverGradient || generateCoverGradient(track.title);
+  const grad = track?.coverGradient || generateCoverGradient(track?.title || 'Track');
   return (
     <div 
       className={`${className} fallback-gradient`} 
-      style={{ background: grad, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800 }}
+      style={{ 
+        background: grad, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        color: 'white' 
+      }}
     >
-      {track.title.substring(0, size === "large" ? 2 : 1).toUpperCase()}
+      <Music size={size === "large" ? 34 : (size === "small" ? 18 : 22)} strokeWidth={2.2} style={{ opacity: 0.85 }} />
     </div>
   );
 }
@@ -381,10 +562,46 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [activeView, setActiveView] = useState('home'); // 'home', 'library', 'favorites', 'playlists', 'folders', 'equalizer', 'settings'
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
-  const [selectedGenreChip, setSelectedGenreChip] = useState('All');
+  const [selectedMood, setSelectedMood] = useState('All');
+  const [selectedGenreDropdown, setSelectedGenreDropdown] = useState('All');
+  const [activeTrackMenuId, setActiveTrackMenuId] = useState(null);
   const [currentSort, setCurrentSort] = useState('Recently Added');
   const [visualizerMode, setVisualizerMode] = useState('none'); // 'none', 'bars', 'circular', 'particles'
   const [isMiniPlayer, setIsMiniPlayer] = useState(false);
+
+  // --- MOBILE RESPONSIVE & BATTERY PERFORMANCE STATES ---
+  const [isMobile, setIsMobile] = useState(() => {
+    return typeof window !== 'undefined' ? window.innerWidth <= 768 : false;
+  });
+  const [isDocumentVisible, setIsDocumentVisible] = useState(true);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    const handleVisibility = () => {
+      setIsDocumentVisible(document.visibilityState === 'visible');
+    };
+    window.addEventListener('resize', handleResize);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Global click outside listener to close active track action menu
+  useEffect(() => {
+    const handleGlobalClick = (e) => {
+      if (!e.target.closest('.amplify-track-menu-container')) {
+        setActiveTrackMenuId(null);
+      }
+    };
+    document.addEventListener('click', handleGlobalClick);
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+    };
+  }, []);
 
   // --- BULK SELECTION STATES (SETTINGS LIBRARY MANAGER) ---
   const [selectedFolderNames, setSelectedFolderNames] = useState([]);
@@ -438,10 +655,6 @@ export default function App() {
     if (!currentTrack) return null;
     return allSongs.find(s => s.id === currentTrack.id) || currentTrack;
   }, [currentTrack, allSongs]);
-
-  const mergedRecentlyPlayed = useMemo(() => {
-    return recentlyPlayed.map(rp => allSongs.find(s => s.id === rp.id) || rp);
-  }, [recentlyPlayed, allSongs]);
 
   // Dynamic Ambient Glow Color extraction (kept for visualizer/particle colors)
   useEffect(() => {
@@ -555,6 +768,7 @@ export default function App() {
   const vocalProtectRef = useRef(null);
   const limiterRef = useRef(null);
   const masterGainRef = useRef(null);
+  const hasLoadedCloudRef = useRef(false);
 
   const initAudioContext = () => {
     if (!audioCtxRef.current && audioRef.current) {
@@ -681,60 +895,6 @@ export default function App() {
     eqNodesRef.current.forEach(n => n.gain.value = 0);
   };
 
-  // --- BOOTSTRAP INITIAL DATA ---
-  useEffect(() => {
-    async function setupApp() {
-      await seedInitialSongsIfEmpty();
-      await loadLocalData();
-
-      // Customize Profile Username on first load
-      let storedName = localStorage.getItem('spoty_username');
-      if (!storedName) {
-        let name = null;
-        while (!name || !name.trim()) {
-          name = prompt("Welcome to Spoty! Please enter your name to customize your profile:");
-          if (name === null) {
-            alert("A profile name is required to personalize your experience.");
-            name = '';
-          }
-        }
-        const cleanName = name.trim();
-        localStorage.setItem('spoty_username', cleanName);
-        setUserName(cleanName);
-      }
-    }
-    setupApp();
-    return () => {
-      // Clear URL object caches on unmount to refresh assets and free memory
-      clearCoverCaches();
-    };
-  }, []);
-
-  // --- SYNCHRONIZE COLOR THEME ON HTML ROOT ---
-  useEffect(() => {
-    const rootEl = document.documentElement;
-    // Remove existing themes
-    rootEl.classList.remove('theme-terracotta', 'theme-black', 'theme-white', 'theme-green', 'theme-orange');
-    // Add current theme
-    rootEl.classList.add(`theme-${activeTheme}`);
-
-    // Dynamically update browser's mobile navigation/header background theme color
-    let themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (!themeMeta) {
-      themeMeta = document.createElement('meta');
-      themeMeta.name = 'theme-color';
-      document.head.appendChild(themeMeta);
-    }
-    const themeColors = {
-      terracotta: '#150608',
-      black: '#050505',
-      white: '#eef1f6',
-      green: '#040d0a',
-      orange: '#0f0b07'
-    };
-    themeMeta.content = themeColors[activeTheme] || '#150608';
-  }, [activeTheme]);
-
   const loadLocalData = async () => {
     try {
       const localSongs = await getAllSongs();
@@ -787,6 +947,56 @@ export default function App() {
     }
   };
 
+  // --- BOOTSTRAP INITIAL DATA ---
+  useEffect(() => {
+    async function setupApp() {
+      await seedInitialSongsIfEmpty();
+      await loadLocalData();
+
+      // Customize Profile Username on first load
+      let storedName = localStorage.getItem('spoty_username');
+      if (!storedName) {
+        let cleanName = 'Music Lover';
+        const entered = safePrompt("Welcome to Spoty! Please enter your name to customize your profile:", "Music Lover");
+        if (entered && entered.trim()) {
+          cleanName = entered.trim();
+        }
+        localStorage.setItem('spoty_username', cleanName);
+        setUserName(cleanName);
+      }
+    }
+    setupApp();
+    return () => {
+      // Clear URL object caches on unmount to refresh assets and free memory
+      clearCoverCaches();
+    };
+  }, []);
+
+  // --- SYNCHRONIZE COLOR THEME ON HTML ROOT ---
+  useEffect(() => {
+    const rootEl = document.documentElement;
+    // Remove existing themes
+    rootEl.classList.remove('theme-terracotta', 'theme-black', 'theme-white', 'theme-green', 'theme-orange');
+    // Add current theme
+    rootEl.classList.add(`theme-${activeTheme}`);
+
+    // Dynamically update browser's mobile navigation/header background theme color
+    let themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (!themeMeta) {
+      themeMeta = document.createElement('meta');
+      themeMeta.name = 'theme-color';
+      document.head.appendChild(themeMeta);
+    }
+    const themeColors = {
+      terracotta: '#150608',
+      black: '#050505',
+      white: '#eef1f6',
+      green: '#040d0a',
+      orange: '#0f0b07'
+    };
+    themeMeta.content = themeColors[activeTheme] || '#150608';
+  }, [activeTheme]);
+
   // --- CLOUD ENGINE METHODS ---
   const loadCloudData = async () => {
     if (!isCloudConfigured) return;
@@ -802,14 +1012,26 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadCloudData();
-  }, [isCloudConfigured]);
-
-  useEffect(() => {
-    if (activeView === 'cloud') {
-      loadCloudData();
-    }
-  }, [activeView]);
+    if (!isCloudConfigured) return;
+    // Only load if not loaded yet, or when navigating to cloud view if empty
+    if (hasLoadedCloudRef.current && activeView !== 'cloud') return;
+    let isCurrent = true;
+    (async () => {
+      try {
+        setIsLoadingCloud(true);
+        const clSongs = await getCloudSongs();
+        if (isCurrent) {
+          setCloudSongs(clSongs);
+          hasLoadedCloudRef.current = true;
+        }
+      } catch (err) {
+        console.error("Error loading cloud library:", err);
+      } finally {
+        if (isCurrent) setIsLoadingCloud(false);
+      }
+    })();
+    return () => { isCurrent = false; };
+  }, [isCloudConfigured, activeView === 'cloud']);
 
   const handleLikeCloudSong = async (songId) => {
     try {
@@ -870,6 +1092,11 @@ export default function App() {
 
   // --- PLAYBACK CONTROLLER ---
   const handlePlaySong = (track, newQueue = []) => {
+    if (track?.isCloud && typeof navigator !== 'undefined' && !navigator.onLine) {
+      triggerNotification("Offline: Cloud streaming unavailable. Play local tracks!", "error");
+      return;
+    }
+
     setCurrentTrack(track);
     setIsPlaying(true);
 
@@ -1005,11 +1232,93 @@ export default function App() {
     }
   };
 
+  // --- NATIVE MOBILE & DESKTOP MEDIA SESSION (LOCK SCREEN & BLUETOOTH CONTROLS) ---
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    if (mergedCurrentTrack) {
+      const coverUrl = getCoverUrl(mergedCurrentTrack) || `${window.location.origin}/logo512.png`;
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: mergedCurrentTrack.title || 'Untitled Track',
+          artist: mergedCurrentTrack.artist || 'Spoty Artist',
+          album: mergedCurrentTrack.album || 'Spoty Music',
+          artwork: [
+            { src: coverUrl, sizes: '96x96', type: 'image/png' },
+            { src: coverUrl, sizes: '128x128', type: 'image/png' },
+            { src: coverUrl, sizes: '192x192', type: 'image/png' },
+            { src: coverUrl, sizes: '512x512', type: 'image/png' },
+          ]
+        });
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      } catch (e) {
+        console.warn('MediaSession metadata error:', e);
+      }
+    } else {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.playbackState = 'none';
+    }
+  }, [mergedCurrentTrack, isPlaying]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    const actionHandlers = [
+      ['play', () => setIsPlaying(true)],
+      ['pause', () => setIsPlaying(false)],
+      ['previoustrack', () => handlePrev()],
+      ['nexttrack', () => handleNext()],
+      ['seekto', (details) => {
+        if (details.seekTime !== undefined && audioRef.current) {
+          audioRef.current.currentTime = details.seekTime;
+          setCurrentTime(details.seekTime);
+        }
+      }],
+      ['stop', () => {
+        setIsPlaying(false);
+        if (audioRef.current) audioRef.current.currentTime = 0;
+      }]
+    ];
+
+    for (const [action, handler] of actionHandlers) {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+          /* ignore */
+        }
+    }
+
+    return () => {
+      for (const [action] of actionHandlers) {
+        try {
+          navigator.mediaSession.setActionHandler(action, null);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+  }, [playQueue, queueIndex, isShuffle]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !duration) return;
+    try {
+      if ('setPositionState' in navigator.mediaSession) {
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(0, duration),
+          playbackRate: 1,
+          position: Math.min(currentTime, duration)
+        });
+      }
+    } catch {
+          /* ignore */
+        }
+  }, [currentTime, duration]);
+
   // --- VISUALIZER ENGINE ---
   const canvasRef = useRef(null);
   
   useEffect(() => {
-    if (activeView !== 'equalizer' || !analyserRef.current || !canvasRef.current) return;
+    if (activeView !== 'equalizer' || !analyserRef.current || !canvasRef.current || !isDocumentVisible) return;
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -1046,9 +1355,13 @@ export default function App() {
     return () => cancelAnimationFrame(animationId);
   }, [activeView, isPlaying]);
 
-  // Save/Upload Folder callback
+  // Save/Upload Folder callback (supports single song or batch songs array)
   const handleUploadTrack = async (songData) => {
-    await saveSong(songData);
+    if (Array.isArray(songData)) {
+      await saveSongs(songData);
+    } else {
+      await saveSong(songData);
+    }
     await loadLocalData();
   };
 
@@ -1121,7 +1434,7 @@ export default function App() {
   const handleAddSongToPlaylistCustom = (song) => {
     const activePlaylists = playlists || [];
     if (activePlaylists.length === 0) {
-      const plName = prompt("You don't have any playlists yet.\nEnter new Playlist name to create one:");
+      const plName = safePrompt("You don't have any playlists yet.\nEnter new Playlist name to create one:");
       if (plName && plName.trim()) {
         handleCreatePlaylist(plName.trim());
       }
@@ -1159,7 +1472,12 @@ export default function App() {
     if (selectedFolderNames.length === 0) return;
     if (confirm(`Are you sure you want to delete the ${selectedFolderNames.length} selected folders and all their songs permanently?`)) {
       const songsToDelete = songs.filter(s => selectedFolderNames.includes(s.album || 'Music Folder'));
+      if (currentTrack && songsToDelete.some(s => s.id === currentTrack.id)) {
+        setCurrentTrack(null);
+        setIsPlaying(false);
+      }
       for (const song of songsToDelete) {
+        revokeTrackUrls(song.id);
         await deleteSong(song.id);
       }
       setSelectedFolderNames([]);
@@ -1171,7 +1489,12 @@ export default function App() {
   const handleDeleteSingleFolder = async (folderName) => {
     if (confirm(`Are you sure you want to delete folder "${folderName}" and all its songs permanently?`)) {
       const songsToDelete = songs.filter(s => (s.album || 'Music Folder') === folderName);
+      if (currentTrack && songsToDelete.some(s => s.id === currentTrack.id)) {
+        setCurrentTrack(null);
+        setIsPlaying(false);
+      }
       for (const song of songsToDelete) {
+        revokeTrackUrls(song.id);
         await deleteSong(song.id);
       }
       setSelectedFolderNames(prev => prev.filter(f => f !== folderName));
@@ -1182,13 +1505,37 @@ export default function App() {
 
   const handleDeleteAllFolders = async () => {
     if (confirm("Are you sure you want to delete ALL folders and ALL songs permanently?")) {
-      for (const song of songs) {
-        await deleteSong(song.id);
+      if (currentTrack && !currentTrack.isCloud) {
+        setCurrentTrack(null);
+        setIsPlaying(false);
       }
+      for (const song of songs) {
+        revokeTrackUrls(song.id);
+      }
+      clearCoverCaches();
+      await clearAllSongs();
       setSelectedFolderNames([]);
       setSelectedSongIds([]);
       await loadLocalData();
       triggerNotification("All folders and songs deleted successfully.");
+    }
+  };
+
+  const handleDeleteAllSongs = async () => {
+    if (confirm("Are you sure you want to delete ALL songs from your local library?")) {
+      if (currentTrack && !currentTrack.isCloud) {
+        setCurrentTrack(null);
+        setIsPlaying(false);
+      }
+      for (const song of songs) {
+        revokeTrackUrls(song.id);
+      }
+      clearCoverCaches();
+      await clearAllSongs();
+      setSelectedSongIds([]);
+      setSelectedFolderNames([]);
+      await loadLocalData();
+      triggerNotification("All local songs deleted successfully.");
     }
   };
 
@@ -1211,7 +1558,12 @@ export default function App() {
   const handleDeleteSelectedSongs = async () => {
     if (selectedSongIds.length === 0) return;
     if (confirm(`Are you sure you want to delete the ${selectedSongIds.length} selected songs permanently?`)) {
+      if (currentTrack && selectedSongIds.includes(currentTrack.id)) {
+        setCurrentTrack(null);
+        setIsPlaying(false);
+      }
       for (const id of selectedSongIds) {
+        revokeTrackUrls(id);
         await deleteSong(id);
       }
       setSelectedSongIds([]);
@@ -1222,6 +1574,11 @@ export default function App() {
 
   const handleDeleteSingleSong = async (songId, songTitle) => {
     if (confirm(`Are you sure you want to delete song "${songTitle}" permanently?`)) {
+      if (currentTrack && currentTrack.id === songId) {
+        setCurrentTrack(null);
+        setIsPlaying(false);
+      }
+      revokeTrackUrls(songId);
       await deleteSong(songId);
       setSelectedSongIds(prev => prev.filter(id => id !== songId));
       await loadLocalData();
@@ -1232,40 +1589,58 @@ export default function App() {
   // --- QUERY FILTERED LISTS ---
   const getSortedSongs = (songsList) => {
     const listCopy = [...songsList];
-    if (currentSort === 'Recently Added') {
+    if (currentSort === 'Date Added' || currentSort === 'Recently Added') {
       return listCopy.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    }
+    if (currentSort === 'Title') {
+      return listCopy.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
     }
     if (currentSort === 'Favorites') {
       return listCopy.filter(s => s.isFavorite);
     }
     if (currentSort === 'Artists') {
-      return listCopy.sort((a, b) => a.artist.localeCompare(b.artist));
+      return listCopy.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
     }
     if (currentSort === 'Albums') {
-      return listCopy.sort((a, b) => a.album.localeCompare(b.album));
+      return listCopy.sort((a, b) => (a.album || '').localeCompare(b.album || ''));
     }
     return listCopy;
   };
 
-  // Filters by search query and active filters
+  // Filters by search query, mood badges, and active filters
   const filteredSongs = useMemo(() => {
     return allSongs.filter((s) => {
       const query = searchQuery.toLowerCase();
       const matchesSearch = s.title.toLowerCase().includes(query) || s.artist.toLowerCase().includes(query) || (s.genre && s.genre.toLowerCase().includes(query));
-      
-      // Chip categories matching
-      if (selectedGenreChip === 'All') return matchesSearch;
-      if (selectedGenreChip === 'Favorites') return matchesSearch && s.isFavorite;
-      
-      const chipLabel = selectedGenreChip.toLowerCase();
-      const songGenre = s.genre ? s.genre.toLowerCase() : '';
-      return matchesSearch && songGenre.includes(chipLabel);
+      if (!matchesSearch) return false;
+
+      // Mood filtering from AMPLIFY Mood Selector
+      if (selectedMood !== 'All') {
+        const moodConfig = MOOD_PRESETS.find(m => m.id === selectedMood);
+        if (moodConfig) {
+          const textCorpus = `${s.title} ${s.artist} ${s.genre || ''} ${s.album || ''}`.toLowerCase();
+          const matchesMood = moodConfig.keywords.some(k => textCorpus.includes(k));
+          if (!matchesMood && allSongs.length > 5) return false;
+        }
+      }
+
+      // Genre dropdown filtering
+      if (selectedGenreDropdown !== 'All') {
+        const g = (s.genre || '').toLowerCase();
+        if (!g.includes(selectedGenreDropdown.toLowerCase())) return false;
+      }
+
+      return true;
     });
-  }, [allSongs, searchQuery, selectedGenreChip]);
+  }, [allSongs, searchQuery, selectedMood, selectedGenreDropdown]);
 
   const displaySongs = useMemo(() => {
     return getSortedSongs(filteredSongs);
   }, [filteredSongs, currentSort]);
+
+  const totalPlaylistDuration = useMemo(() => {
+    return displaySongs.reduce((acc, s) => acc + (s.duration || 0), 0);
+  }, [displaySongs]);
 
   const likedSongsList = useMemo(() => {
     return allSongs.filter(s => s.isFavorite);
@@ -1275,28 +1650,15 @@ export default function App() {
     return displaySongs.filter(s => s.isFavorite);
   }, [displaySongs]);
 
-  // Extract unique genres dynamically for filter chips
-  const dynamicGenres = useMemo(() => {
-    return Array.from(
-      new Set(
-        allSongs
-          .map((s) => s.genre)
-          .filter(Boolean)
-          .map((g) => g.trim())
-      )
-    ).filter((g) => g !== "");
-  }, [allSongs]);
-
-  const genreChips = useMemo(() => {
-    return ['All', ...dynamicGenres, 'Favorites'];
-  }, [dynamicGenres]);
-
   // Sidebar navigations helper
-  const navigateToView = (viewName) => {
-    setActiveView(viewName);
+  const navigateToView = useCallback((viewName) => {
+    setActiveView(prev => {
+      if (prev === viewName) return prev;
+      return viewName;
+    });
     setSelectedCategory(null);
     setActivePlaylistId(null);
-  };
+  }, []);
 
   return (
     <>
@@ -1307,6 +1669,7 @@ export default function App() {
             src={getActiveBackgroundSrc()} 
             className="background-image-layer" 
             alt="background"
+            style={{ display: isDocumentVisible ? 'block' : 'none' }}
           />
         ) : (
           <video 
@@ -1316,6 +1679,7 @@ export default function App() {
             muted 
             playsInline
             className="background-video-layer"
+            style={{ display: isDocumentVisible ? 'block' : 'none' }}
           >
             <source src={getActiveBackgroundSrc()} type="video/mp4" />
           </video>
@@ -1323,7 +1687,12 @@ export default function App() {
       )}
 
       {/* Real-time HTML5 Frequency Visualizer Canvas */}
-      <AudioVisualizer analyser={analyserRef} mode={visualizerMode} />
+      <AudioVisualizer 
+        analyser={analyserRef} 
+        mode={visualizerMode} 
+        isDocumentVisible={isDocumentVisible}
+        isMobile={isMobile}
+      />
 
       <audio 
         ref={audioRef}
@@ -1379,137 +1748,148 @@ export default function App() {
       <div className={`app-container ${isSidebarVisible ? '' : 'sidebar-collapsed'} ${isMiniPlayer ? 'mini-player-active' : ''}`}>
 
       {/* ==========================================================================
-         SIDEBAR: Spotify-inspired navigation & playlists section
+         AMPLIFY SIDEBAR: Liquid glass navigation, Mood selector, Genre filters
          ========================================================================== */}
-      <aside className={`left-sidebar bento-panel ${isSidebarVisible ? '' : 'collapsed'}`}>
+      <aside className={`left-sidebar amplify-sidebar bento-panel ${isSidebarVisible ? '' : 'collapsed'}`}>
         {/* Brand Header */}
-        <div className="brand-row">
-          <div className="brand-icon-box">
-            <Music size={16} className="text-white" />
+        <div className="amplify-brand-row">
+          <div className="amplify-brand-left">
+            <img src="/logo192.png" alt="AMPLIFY Logo" className="amplify-brand-logo-img" />
+            <span className="amplify-brand-logo">AMPLIFY</span>
           </div>
-          <span className="brand-title">Spoty</span>
+          <button 
+            type="button"
+            className="amplify-search-btn" 
+            onClick={() => {
+              const el = document.getElementById('amplify-global-search');
+              if (el) el.focus();
+            }}
+            title="Search Music"
+          >
+            <Search size={15} />
+          </button>
         </div>
 
-        {/* SECTION: Main Menu */}
-        <div className="sidebar-section">
-          <span className="sidebar-sec-title">Discover</span>
+        {/* Primary Navigation Menu */}
+        <nav className="amplify-nav-group">
           <button 
-            className={`sidebar-nav-btn ${activeView === 'home' ? 'active' : ''}`}
-            onClick={() => navigateToView('home')}
-          >
-            <Home size={16} />
-            <span>Home</span>
-          </button>
-          <button 
-            className={`sidebar-nav-btn ${activeView === 'cloud' ? 'active' : ''}`}
-            onClick={() => navigateToView('cloud')}
-            style={{ position: 'relative' }}
-          >
-            <Globe size={16} />
-            <span>Global Cloud</span>
-            <span style={{ 
-              fontSize: '0.6rem', 
-              background: 'linear-gradient(135deg, var(--secondary) 0%, var(--accent) 100%)', 
-              color: 'white', 
-              padding: '1px 6px', 
-              borderRadius: '8px', 
-              marginLeft: 'auto',
-              fontWeight: 700 
-            }}>
-              LIVE
-            </span>
-          </button>
-          <button 
-            className={`sidebar-nav-btn ${activeView === 'library' ? 'active' : ''}`}
+            className={`amplify-nav-item ${activeView === 'library' || activeView === 'favorites' ? 'active' : ''}`}
             onClick={() => navigateToView('library')}
           >
-            <Heart size={16} />
-            <span>Liked Songs</span>
+            <Library size={16} />
+            <span>My Library</span>
           </button>
           <button 
-            className={`sidebar-nav-btn ${activeView === 'equalizer' ? 'active' : ''}`}
+            className={`amplify-nav-item ${activeView === 'home' ? 'active' : ''}`}
+            onClick={() => navigateToView('home')}
+          >
+            <Compass size={16} />
+            <span>Discover</span>
+          </button>
+          <button 
+            className={`amplify-nav-item ${activeView === 'cloud' ? 'active' : ''}`}
+            onClick={() => navigateToView('cloud')}
+          >
+            <Globe size={16} />
+            <span>Curators</span>
+            <span className="amplify-badge-live">CLOUD</span>
+          </button>
+          <button 
+            className={`amplify-nav-item ${activeView === 'equalizer' ? 'active' : ''}`}
             onClick={() => navigateToView('equalizer')}
           >
             <Sliders size={16} />
-            <span>Equalizer & DSP</span>
-          </button>
-        </div>
-
-        {/* SECTION: Library Containers */}
-        <div className="sidebar-section">
-          <span className="sidebar-sec-title">Your Space</span>
-          <button 
-            className={`sidebar-nav-btn ${activeView === 'folders' ? 'active' : ''}`}
-            onClick={() => navigateToView('folders')}
-          >
-            <Folder size={16} />
-            <span>Folders</span>
+            <span>Genres & DSP</span>
           </button>
           <button 
-            className={`sidebar-nav-btn ${activeView === 'playlists' ? 'active' : ''}`}
-            onClick={() => navigateToView('playlists')}
+            className={`amplify-nav-item ${activeView === 'settings' ? 'active' : ''}`}
+            onClick={() => navigateToView('settings')}
           >
-            <ListMusic size={16} />
-            <span>Playlists</span>
+            <Settings size={16} />
+            <span>Settings</span>
           </button>
-        </div>
+        </nav>
 
-        {/* SECTION: Collapsed playlists quick navigators */}
-        {playlists.length > 0 && (
-          <div className="sidebar-section">
-            <span className="sidebar-sec-title">Saved Playlists</span>
-            <div className="sidebar-playlist-scroll">
-              {playlists.map((pl) => {
-                const isPlActive = activePlaylistId === pl.id;
-                const grad = generateCoverGradient(pl.name);
-                
-                return (
-                  <div 
-                    key={pl.id}
-                    className={`sidebar-playlist-tile ${isPlActive ? 'active' : ''}`}
-                    onClick={() => {
-                      setActivePlaylistId(pl.id);
-                      setActiveView('playlists');
-                      setSelectedCategory(null);
-                    }}
-                  >
-                    <div className="sidebar-playlist-color" style={{ background: grad }} />
-                    <span className="truncate">{pl.name}</span>
+        {/* MOOD SELECTOR (6 Circular Badges in 2-column Grid) */}
+        <div className="amplify-sidebar-section">
+          <div className="amplify-section-label">MOOD SELECTOR</div>
+          <div className="amplify-mood-grid">
+            {MOOD_PRESETS.map((m) => {
+              const Icon = m.icon;
+              const isSelected = selectedMood === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`amplify-mood-item ${isSelected ? 'active' : ''}`}
+                  onClick={() => setSelectedMood(prev => prev === m.id ? 'All' : m.id)}
+                  title={`Filter by ${m.label} mood`}
+                >
+                  <div className="amplify-mood-badge">
+                    <Icon size={17} />
                   </div>
-                );
-              })}
-            </div>
+                  <span className="amplify-mood-label">{m.label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
-        {/* FOOTER PROFILE */}
-        <div className="sidebar-footer">
-          <div 
-            className="user-profile-tile"
-            onClick={() => {
-              const newName = prompt("Enter your profile name:", userName);
-              if (newName && newName.trim()) {
-                const clean = newName.trim();
-                setUserName(clean);
-                localStorage.setItem('spoty_username', clean);
-                triggerNotification("Profile name updated!");
-              }
-            }}
-            style={{ cursor: 'pointer' }}
-            title="Click to edit profile name"
-          >
-            <div className="user-avatar-circle">
-              <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop" alt={`${userName || 'User'} Avatar`} />
-            </div>
-            <span className="user-name-lbl">{userName || 'User'}</span>
+        {/* GENRE FILTERS (Pill Dropdown List) */}
+        <div className="amplify-sidebar-section">
+          <div className="amplify-section-label">GENRE FILTERS</div>
+          <div className="amplify-genre-list">
+            {['Ambient', 'Indie', 'Electronic', 'Lo-Fi', 'Neo-Soul', 'Pop'].map((genre) => {
+              const isSelected = selectedGenreDropdown === genre;
+              return (
+                <button
+                  key={genre}
+                  type="button"
+                  className={`amplify-genre-pill ${isSelected ? 'active' : ''}`}
+                  onClick={() => setSelectedGenreDropdown(prev => prev === genre ? 'All' : genre)}
+                >
+                  <span>{genre}</span>
+                  <ChevronDown size={14} className={`amplify-chevron ${isSelected ? 'rotated' : ''}`} />
+                </button>
+              );
+            })}
           </div>
-          <button 
-            className="sidebar-add-btn" 
-            onClick={() => setIsUploadOpen(true)}
-            title="Import Music Folder"
-          >
-            <Plus size={16} />
-          </button>
+        </div>
+
+        {/* BOTTOM-LEFT MINI ALBUM PREVIEW CARD */}
+        <div 
+          className="amplify-mini-album-card"
+          onClick={() => {
+            if (mergedCurrentTrack) handlePlaySong(mergedCurrentTrack, displaySongs);
+          }}
+          title={mergedCurrentTrack ? `Now Playing: ${mergedCurrentTrack.title}` : 'AMPLIFY Player'}
+        >
+          <div className="amplify-mini-cover">
+            {mergedCurrentTrack ? (
+              <TrackCover track={mergedCurrentTrack} className="folder-collage-full" />
+            ) : (
+              <div className="amplify-metallic-wave">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="fluid-wave-svg">
+                  <path d="M0 60 Q 30 20, 60 70 T 100 40 L 100 100 L 0 100 Z" fill="url(#metallicGrad)" />
+                  <defs>
+                    <linearGradient id="metallicGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#e2e8f0" stopOpacity="0.8" />
+                      <stop offset="50%" stopColor="#64748b" stopOpacity="0.6" />
+                      <stop offset="100%" stopColor="#1e293b" stopOpacity="0.9" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+            )}
+          </div>
+          <div className="amplify-mini-meta">
+            <span className="amplify-mini-title truncate">
+              {mergedCurrentTrack ? mergedCurrentTrack.title : 'Midnight Sun'}
+            </span>
+            <span className="amplify-mini-artist truncate">
+              {mergedCurrentTrack ? mergedCurrentTrack.artist : 'Alina Baraz'}
+            </span>
+          </div>
         </div>
       </aside>
 
@@ -1519,19 +1899,19 @@ export default function App() {
       <main className="main-viewport">
         {/* Header containing search & settings */}
         <header className="bento-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="header-brand-group">
             <button 
               className="header-icon-btn toggle-sidebar-btn" 
               onClick={() => setIsSidebarVisible(!isSidebarVisible)}
               title={isSidebarVisible ? "Hide Sidebar" : "Show Sidebar"}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '32px', height: '32px', borderRadius: '10px' }}
             >
               <Menu size={16} />
             </button>
+            <img src="/logo192.png" alt="AMPLIFY Logo" className="header-brand-logo-img" />
             <h2 
               style={{ margin: 0, cursor: 'pointer' }}
               onClick={() => {
-                const newName = prompt("Enter your profile name:", userName);
+                const newName = safePrompt("Enter your profile name:", userName);
                 if (newName && newName.trim()) {
                   const clean = newName.trim();
                   setUserName(clean);
@@ -1548,6 +1928,7 @@ export default function App() {
           <div className="bento-search-box">
             <Search className="search-icon text-muted" size={14} />
             <input 
+              id="amplify-global-search"
               type="text" 
               placeholder="Search by title, artist, genre..." 
               value={searchQuery}
@@ -1556,6 +1937,15 @@ export default function App() {
           </div>
 
           <div className="header-action-row">
+            {typeof window !== 'undefined' && window.electronAPI && (
+              <button 
+                className={`header-icon-btn ${isMiniPlayer ? 'active' : ''}`}
+                onClick={handleToggleMiniPlayer}
+                title={isMiniPlayer ? "Expand Window" : "Mini Player"}
+              >
+                <Sliders size={16} />
+              </button>
+            )}
             <button className="header-icon-btn"><Bell size={16} /></button>
             <button 
               className={`header-icon-btn ${activeView === 'settings' ? 'active' : ''}`}
@@ -1565,6 +1955,29 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {/* Mobile Horizontal Mood Tray */}
+        {isMobile && (
+          <div className="amplify-mobile-filter-tray">
+            <div className="amplify-mobile-mood-scroll">
+              {MOOD_PRESETS.map((m) => {
+                const Icon = m.icon;
+                const isSelected = selectedMood === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`amplify-mobile-mood-chip ${isSelected ? 'active' : ''}`}
+                    onClick={() => setSelectedMood(prev => prev === m.id ? 'All' : m.id)}
+                  >
+                    <Icon size={12} />
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Scrollable contents grid depending on Active View */}
         {selectedCategory ? (
@@ -1855,37 +2268,37 @@ export default function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>☁️ Cloud Storage Capacity</span>
-                      {cloudSongs.length >= 45 && (
+                      {cloudSongs.length >= 240 && (
                         <span style={{ 
                           fontSize: '0.65rem', 
                           padding: '2px 8px', 
-                          background: cloudSongs.length >= 50 ? 'rgba(255, 75, 75, 0.1)' : 'rgba(255, 165, 0, 0.1)', 
-                          color: cloudSongs.length >= 50 ? '#ff4b4b' : '#ffa500', 
+                          background: cloudSongs.length >= 250 ? 'rgba(255, 75, 75, 0.1)' : 'rgba(255, 165, 0, 0.1)', 
+                          color: cloudSongs.length >= 250 ? '#ff4b4b' : '#ffa500', 
                           borderRadius: '20px', 
                           fontWeight: 700 
                         }}>
-                          {cloudSongs.length >= 50 ? '🚨 FULL' : '⚠️ ALMOST FULL'}
+                          {cloudSongs.length >= 250 ? '🚨 FULL' : '⚠️ ALMOST FULL'}
                         </span>
                       )}
                     </div>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Using {cloudSongs.length} of 50 slots • <strong>{Math.max(0, 50 - cloudSongs.length)} slots left</strong>
+                      Using {cloudSongs.length} of 250 slots • <strong>{Math.max(0, 250 - cloudSongs.length)} slots left</strong>
                     </span>
                   </div>
 
                   <div style={{ flex: '1', minWidth: '150px', maxWidth: '300px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ width: '100%', height: '8px', background: 'var(--bg-primary)', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
                       <div style={{ 
-                        width: `${Math.min(100, (cloudSongs.length / 50) * 100)}%`, 
+                        width: `${Math.min(100, (cloudSongs.length / 250) * 100)}%`, 
                         height: '100%', 
-                        background: cloudSongs.length >= 50 ? 'linear-gradient(90deg, #ff4b4b, #ff7b7b)' : 'linear-gradient(90deg, var(--secondary), var(--accent))',
+                        background: cloudSongs.length >= 250 ? 'linear-gradient(90deg, #ff4b4b, #ff7b7b)' : 'linear-gradient(90deg, var(--secondary), var(--accent))',
                         borderRadius: '10px',
                         transition: 'width 0.5s ease-in-out'
                       }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                      <span>{Math.round(cloudSongs.length * 8)} MB Est. Used</span>
-                      <span><strong>{Math.max(0, 400 - Math.round(cloudSongs.length * 8))} MB Remaining</strong> (of 400MB safety limit)</span>
+                      <span>{Math.round(cloudSongs.length * 4)} MB Est. Used</span>
+                      <span><strong>{Math.max(0, 1000 - Math.round(cloudSongs.length * 4))} MB Remaining</strong> (of 1,000MB free safety limit)</span>
                     </div>
                   </div>
                 </div>
@@ -1907,7 +2320,7 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {cloudSongs.map((song, idx) => {
+                        {cloudSongs.map((song) => {
                           const isCurrent = currentTrack && currentTrack.id === song.id;
                           const grad = generateCoverGradient(song.title);
                           return (
@@ -2029,7 +2442,7 @@ export default function App() {
                 <button 
                   className="btn-primary" 
                   onClick={() => {
-                    const name = prompt("Enter new Playlist name:");
+                    const name = safePrompt("Enter new Playlist name:");
                     if (name && name.trim()) handleCreatePlaylist(name.trim());
                   }}
                   style={{ padding: '6px 12px', fontSize: '0.75rem' }}
@@ -2161,7 +2574,7 @@ export default function App() {
                 <button 
                   className="btn-secondary" 
                   onClick={() => {
-                    const newName = prompt("Enter your new profile name:", userName);
+                    const newName = safePrompt("Enter your new profile name:", userName);
                     if (newName && newName.trim()) {
                       const clean = newName.trim();
                       setUserName(clean);
@@ -2448,7 +2861,7 @@ export default function App() {
 
             <div className="bento-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
               <h4 style={{ fontSize: '0.9rem', fontWeight: 700 }}>Local Library Statistics</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '4px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '12px', marginTop: '4px' }}>
                 <div style={{ background: 'var(--bg-primary)', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>CRAWLED TRACKS</span>
                   <h3 style={{ fontSize: '1.25rem', color: 'var(--secondary)', marginTop: '4px' }}>{songs.length}</h3>
@@ -2460,6 +2873,10 @@ export default function App() {
                 <div style={{ background: 'var(--bg-primary)', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>LISTENING HOURS</span>
                   <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', marginTop: '4px' }}>{listeningHours}h</h3>
+                </div>
+                <div style={{ background: 'var(--bg-primary)', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700 }}>RECENT HISTORY</span>
+                  <h3 style={{ fontSize: '1.25rem', color: '#38bdf8', marginTop: '4px' }}>{recentlyPlayed.length}</h3>
                 </div>
               </div>
             </div>
@@ -2655,7 +3072,7 @@ export default function App() {
                 <div className="settings-manager-footer">
                   <button 
                     className="btn-danger-outline" 
-                    onClick={handleDeleteAllFolders}
+                    onClick={handleDeleteAllSongs}
                     disabled={songs.length === 0}
                   >
                     Delete All Songs
@@ -2670,15 +3087,17 @@ export default function App() {
               </button>
               <button 
                 className="btn-secondary" 
+                onClick={handleClearRecentlyPlayed}
+                style={{ fontSize: '0.8rem' }}
+              >
+                Clear Recent History
+              </button>
+              <button 
+                className="btn-secondary" 
                 onClick={async () => {
                   if (confirm("Reset local database and clear all songs/playlists?")) {
                     clearCoverCaches();
-                    for (const s of songs) {
-                      await deleteSong(s.id);
-                    }
-                    for (const p of playlists) {
-                      await deletePlaylist(p.id);
-                    }
+                    await clearAllLocalData();
                     localStorage.clear();
                     await loadLocalData();
                     triggerNotification("Database successfully wiped.");
@@ -2864,292 +3283,471 @@ export default function App() {
           </section>
         ) : (
           /* ==========================================================================
-             DASHBOARD HOME VIEW (Spotify / Apple Music Grid-focused facelift)
+             AMPLIFY DASHBOARD VIEW: Active Playlist Banner, Controls, Frosted Track Rows
              ========================================================================== */
-          <section className="home-viewport-scroll animate-fade-in">
-            
-            {/* SECTION 2: Recently Played */}
-            {mergedRecentlyPlayed.length > 0 && (
-              <div className="home-section-container">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="home-sec-title" style={{ margin: 0 }}>Recently Played</span>
+          <section className="amplify-home-view animate-fade-in">
+            {/* 1. ACTIVE PLAYLIST HERO BANNER */}
+            <div className="amplify-playlist-banner">
+              <div className="amplify-banner-meta">
+                <span className="amplify-banner-tag">
+                  {activePlaylistId ? 'PLAYLIST' : selectedCategory ? 'CATEGORY' : 'DISCOVER'}
+                </span>
+                <span className="amplify-banner-stats">
+                  {activePlaylistId 
+                    ? playlists.find(p => p.id === activePlaylistId)?.name || 'Playlist' 
+                    : selectedCategory 
+                      ? selectedCategory 
+                      : 'All Tracks'} • {displaySongs.length} Tracks • {formatTime(totalPlaylistDuration)}
+                </span>
+                <h1 className="amplify-banner-title">
+                  {activePlaylistId 
+                    ? playlists.find(p => p.id === activePlaylistId)?.name 
+                    : selectedCategory 
+                      ? selectedCategory 
+                      : 'Discover & Featured'}
+                </h1>
+                <p className="amplify-banner-subtitle">
+                  {selectedMood !== 'All' ? `${selectedMood} Vibes • ` : ''}
+                  {selectedGenreDropdown !== 'All' ? `${selectedGenreDropdown} • ` : ''}
+                  Curated High-Fidelity Audio • Offline & Cloud
+                </p>
+                <div className="amplify-banner-actions">
                   <button 
-                    className="btn-secondary" 
-                    onClick={handleClearRecentlyPlayed}
-                    style={{ padding: '4px 10px', fontSize: '0.65rem', borderRadius: '8px', color: '#ef4444', borderColor: 'rgba(239,68,68,0.2)' }}
+                    type="button"
+                    className="amplify-add-tracks-btn" 
+                    onClick={() => setIsUploadOpen(true)}
                   >
-                    Clear Recent
+                    <span>Add Tracks +</span>
                   </button>
-                </div>
-                <div className="horizontal-scroll-row">
-                  {mergedRecentlyPlayed.map((song) => (
-                    <div 
-                      key={'recent-' + song.id}
-                      className="compact-song-card"
-                      onClick={() => handlePlaySong(song, mergedRecentlyPlayed)}
+                  {selectedMood !== 'All' && (
+                    <button 
+                      type="button"
+                      className="amplify-clear-pill-btn" 
+                      onClick={() => setSelectedMood('All')}
                     >
-                      <div className="card-artwork-box">
-                        <TrackCover track={song} className="folder-collage-full" />
-                        <div className="card-hover-overlay">
-                          <button 
-                            className="card-overlay-btn play"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePlaySong(song, mergedRecentlyPlayed);
-                            }}
-                            title="Play Song"
-                          >
-                            <Play size={18} fill="currentColor" style={{ marginLeft: '2px' }} />
-                          </button>
-                        </div>
-
-                        <button 
-                          className="card-delete-badge"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (song.isCloud) {
-                              handleDeleteCloudSong(song.id, song.title);
-                            } else {
-                              handleDeleteSingleSong(song.id, song.title);
-                            }
-                          }}
-                          title="Delete Song"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                      <div className="card-details-box">
-                        <span className="card-title truncate" title={song.title}>{song.title}</span>
-                        <span className="card-artist truncate">{song.artist}</span>
-                      </div>
-                    </div>
-                  ))}
+                      <span>Mood: {selectedMood} ✕</span>
+                    </button>
+                  )}
+                  {selectedGenreDropdown !== 'All' && (
+                    <button 
+                      type="button"
+                      className="amplify-clear-pill-btn" 
+                      onClick={() => setSelectedGenreDropdown('All')}
+                    >
+                      <span>Genre: {selectedGenreDropdown} ✕</span>
+                    </button>
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* SECTION 4: Categories Horizontal filter Chips */}
-            <div className="home-section-container" style={{ gap: '0.5rem' }}>
-              <span className="home-sec-title">Quick Genre Filters</span>
-              <div className="category-chips-row">
-                {genreChips.map((chip) => (
-                  <button 
-                    key={chip} 
-                    className={`genre-chip ${selectedGenreChip === chip ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedGenreChip(chip);
-                      navigateToView('home'); // resets to home grid
-                    }}
-                  >
-                    {chip}
-                  </button>
-                ))}
+              {/* Large Right Artwork Card */}
+              <div className="amplify-banner-artwork-card">
+                <div className="amplify-banner-artwork-inner">
+                  {mergedCurrentTrack ? (
+                    <TrackCover track={mergedCurrentTrack} className="folder-collage-full" />
+                  ) : displaySongs.length > 0 ? (
+                    <TrackCover track={displaySongs[0]} className="folder-collage-full" />
+                  ) : (
+                    <div className="amplify-metallic-hero-art">
+                      <span className="amplify-hero-label">AMPLIFY<br/>MUSIC</span>
+                      <svg viewBox="0 0 160 160" className="hero-wave-svg" preserveAspectRatio="none">
+                        <path d="M0 110 C 40 60, 90 140, 160 80 L 160 160 L 0 160 Z" fill="url(#heroWaveGrad1)" />
+                        <path d="M0 130 C 50 80, 100 150, 160 105 L 160 160 L 0 160 Z" fill="url(#heroWaveGrad2)" opacity="0.6" />
+                        <defs>
+                          <linearGradient id="heroWaveGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#e2e8f0" stopOpacity="0.9" />
+                            <stop offset="60%" stopColor="#64748b" stopOpacity="0.7" />
+                            <stop offset="100%" stopColor="#1e1b4b" stopOpacity="0.95" />
+                          </linearGradient>
+                          <linearGradient id="heroWaveGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.7" />
+                            <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.4" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <button 
+                  type="button"
+                  className="amplify-edit-cover-btn"
+                  onClick={() => {
+                    navigateToView('settings');
+                    triggerNotification("Customize theme or background in Settings!");
+                  }}
+                >
+                  Edit Cover
+                </button>
               </div>
             </div>
 
-            {/* SECTION 5: All Songs Grid */}
-            <div className="home-section-container">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span className="home-sec-title" style={{ margin: 0 }}>
-                    {selectedGenreChip === 'All' ? 'All Songs Grid' : `${selectedGenreChip} Music`}
-                  </span>
-                  <button 
-                    className="btn-primary" 
-                    onClick={handlePlayRandom} 
-                    style={{ padding: '4px 10px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
-                    title="Shuffle Play All Songs"
-                  >
-                    <Shuffle size={12} />
-                    <span>Shuffle Play</span>
-                  </button>
-                </div>
-                
-                {/* Quick Sort Options */}
-                <div className="header-action-row">
-                  {['Recently Added', 'Artists', 'Albums'].map((sortType) => (
-                    <button 
-                      key={sortType}
-                      className={`filter-btn-pill ${currentSort === sortType ? 'active' : ''}`}
-                      onClick={() => setCurrentSort(sortType)}
-                    >
-                      {sortType}
-                    </button>
-                  ))}
-                </div>
+            {/* 2. CONTROLS BAR */}
+            <div className="amplify-controls-bar">
+              <div className="amplify-controls-left">
+                <button 
+                  type="button"
+                  className={`amplify-pill-btn ${isShuffle ? 'active' : ''}`}
+                  onClick={handlePlayRandom}
+                  title="Shuffle Play All Tracks"
+                >
+                  <Shuffle size={14} />
+                  <span>Shuffle</span>
+                </button>
+                <button 
+                  type="button"
+                  className="amplify-pill-btn"
+                  onClick={() => {
+                    const newTitle = safePrompt("Enter custom playlist title:", (userName || 'My') + " Mix");
+                    if (newTitle && newTitle.trim()) {
+                      handleCreatePlaylist(newTitle.trim());
+                    }
+                  }}
+                  title="Edit Playlist / Create New"
+                >
+                  <Edit3 size={14} />
+                  <span>Edit</span>
+                </button>
               </div>
 
+              <div className="amplify-controls-right">
+                <div className="amplify-dropdown-wrapper">
+                  <button 
+                    type="button"
+                    className="amplify-pill-btn dropdown"
+                    onClick={() => {
+                      const nextSort = currentSort === 'Recently Added' ? 'Title' : currentSort === 'Title' ? 'Artists' : 'Recently Added';
+                      setCurrentSort(nextSort);
+                    }}
+                  >
+                    <span>Custom</span>
+                    <ChevronDown size={13} />
+                  </button>
+                </div>
+                <button 
+                  type="button"
+                  className={`amplify-pill-btn ${currentSort === 'Date Added' || currentSort === 'Recently Added' ? 'active' : ''}`}
+                  onClick={() => setCurrentSort('Recently Added')}
+                  title="Sort by Date Added"
+                >
+                  <span>Date Added</span>
+                  <span className="amplify-sort-arrows">⇅</span>
+                </button>
+                <button 
+                  type="button"
+                  className={`amplify-pill-btn ${currentSort === 'Title' ? 'active' : ''}`}
+                  onClick={() => setCurrentSort('Title')}
+                  title="Sort Alphabetically by Title"
+                >
+                  <span>Title</span>
+                  <span className="amplify-sort-arrows">⇅</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 3. FROSTED TRACK ROWS */}
+            <div className="amplify-track-list">
               {displaySongs.length > 0 ? (
-                <div className="songs-compact-grid">
-                  {displaySongs.map((song) => (
+                displaySongs.map((song, idx) => {
+                  const isCurrent = currentTrack && currentTrack.id === song.id;
+                  const isMenuOpen = activeTrackMenuId === song.id;
+                  return (
                     <div 
-                      key={song.id} 
-                      className="compact-song-card"
+                      key={song.id}
+                      className={`amplify-track-row ${isCurrent ? 'active' : ''}`}
                       onClick={() => handlePlaySong(song, displaySongs)}
                     >
-                      <div className="card-artwork-box">
-                        <TrackCover track={song} className="folder-collage-full" />
-                        
-                        {/* Artwork Hover Actions overlay */}
-                        <div className="card-hover-overlay">
-                          <button 
-                            className="card-overlay-btn play"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePlaySong(song, displaySongs);
-                            }}
-                            title="Play Song"
-                          >
-                            <Play size={18} fill="currentColor" style={{ marginLeft: '2px' }} />
-                          </button>
-                        </div>
+                      {/* Index / Drag Handle */}
+                      <div className="amplify-track-handle">
+                        {idx < 2 ? (
+                          <span className="amplify-track-num">{idx + 1}.</span>
+                        ) : (
+                          <span className="amplify-track-drag">≡</span>
+                        )}
+                      </div>
 
+                      {/* Thumbnail */}
+                      <div className="amplify-track-thumb">
+                        <TrackCover track={song} className="amplify-thumb-img" />
+                        {isCurrent && isPlaying && (
+                          <div className="amplify-thumb-playing-indicator">
+                            <span className="bar b1"></span>
+                            <span className="bar b2"></span>
+                            <span className="bar b3"></span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Title & Artist */}
+                      <div className="amplify-track-meta">
+                        <span className="amplify-track-title truncate">{song.title}</span>
+                        <span className="amplify-track-artist truncate">{song.artist}</span>
+                      </div>
+
+                      {/* Duration */}
+                      <span className="amplify-track-duration">
+                        {formatTime(song.duration)}
+                      </span>
+
+                      {/* More actions menu */}
+                      <div className="amplify-track-menu-container">
                         <button 
-                          className="card-delete-badge"
+                          type="button"
+                          className={`amplify-track-menu-btn ${isMenuOpen ? 'active' : ''}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (song.isCloud) {
-                              handleDeleteCloudSong(song.id, song.title);
-                            } else {
-                              handleDeleteSingleSong(song.id, song.title);
-                            }
+                            setActiveTrackMenuId(prev => prev === song.id ? null : song.id);
                           }}
-                          title="Delete Song"
+                          title="Track options"
                         >
-                          <Trash2 size={13} />
+                          <MoreHorizontal size={17} />
                         </button>
-                      </div>
 
-                      <div className="card-details-box">
-                        <span className="card-title truncate" title={song.title}>{song.title}</span>
-                        <span className="card-artist truncate">{song.artist}</span>
+                        {isMenuOpen && (
+                          <div className="amplify-track-popover animate-fade-in" onClick={(e) => e.stopPropagation()}>
+                            <button type="button" onClick={() => { handlePlaySong(song, displaySongs); setActiveTrackMenuId(null); }}>
+                              <Play size={13} fill="currentColor" />
+                              <span>Play Now</span>
+                            </button>
+                            <button type="button" onClick={() => { handleToggleFavorite(song); setActiveTrackMenuId(null); }}>
+                              <Heart size={13} fill={song.isFavorite ? 'var(--primary)' : 'none'} color={song.isFavorite ? 'var(--primary)' : 'currentColor'} />
+                              <span>{song.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</span>
+                            </button>
+                            <button type="button" onClick={() => { handleAddSongToPlaylistCustom(song); setActiveTrackMenuId(null); }}>
+                              <Plus size={13} />
+                              <span>Add to Playlist...</span>
+                            </button>
+                            <button type="button" onClick={() => { navigateToView('equalizer'); setActiveTrackMenuId(null); }}>
+                              <Sliders size={13} />
+                              <span>Cinematic DSP EQ</span>
+                            </button>
+                            <button type="button" className="delete-opt" onClick={async () => {
+                              setActiveTrackMenuId(null);
+                              if (song.isCloud) {
+                                handleDeleteCloudSong(song.id, song.title);
+                              } else {
+                                handleDeleteSingleSong(song.id, song.title);
+                              }
+                            }}>
+                              <Trash2 size={13} />
+                              <span>Delete Track</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })
               ) : (
-                <div className="bento-panel" style={{ padding: '32px', textAlign: 'center', color: 'var(--text-dark)' }}>
-                  No songs match the selected filters or query. Import more folders of music to get started!
+                <div className="amplify-empty-state">
+                  <Music size={38} className="empty-icon" />
+                  <h3>No Tracks in this view</h3>
+                  <p>Click "Add Tracks +" above or import a music folder to fill your library.</p>
+                  <button type="button" className="amplify-add-tracks-btn" onClick={() => setIsUploadOpen(true)} style={{ marginTop: '12px' }}>
+                    <span>Import Tracks Now</span>
+                  </button>
                 </div>
               )}
             </div>
-
           </section>
+        )}
+
+        {/* ==========================================================================
+           AMPLIFY AUDIO TIMELINE: Liquid glass dock with real-time symmetric waveform
+           ========================================================================== */}
+        {mergedCurrentTrack && (
+          <footer className="amplify-audio-dock animate-slide-in">
+            {/* Timeline Header Row */}
+            <div className="amplify-timeline-header">
+              <div className="amplify-timeline-label">
+                <span>AUDIO TIMELINE</span>
+                <span className="amplify-timeline-now-playing truncate">
+                  — {mergedCurrentTrack.title} • {mergedCurrentTrack.artist}
+                </span>
+              </div>
+              <div className="amplify-timeline-icons">
+                <button 
+                  type="button"
+                  className={`amplify-dock-icon-btn ${visualizerMode !== 'none' ? 'active' : ''}`}
+                  onClick={handleToggleVisualizer}
+                  title="Toggle Frequency Audio Visualizer"
+                >
+                  <Activity size={14} />
+                </button>
+                <button 
+                  type="button"
+                  className={`amplify-dock-icon-btn ${activeView === 'equalizer' ? 'active' : ''}`}
+                  onClick={() => navigateToView('equalizer')}
+                  title="Studio DSP Equalizer"
+                >
+                  <Sliders size={14} />
+                </button>
+                <button 
+                  type="button"
+                  className={`amplify-dock-icon-btn ${activeView === 'playlists' ? 'active' : ''}`}
+                  onClick={() => navigateToView('playlists')}
+                  title="Playlists & Queue"
+                >
+                  <ListMusic size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Real-time Symmetric Waveform Scrubber */}
+            <WaveformTimeline 
+              analyser={analyserRef}
+              isPlaying={isPlaying}
+              currentTime={currentTime}
+              duration={duration}
+              onSeek={handleSeek}
+              isDocumentVisible={isDocumentVisible}
+            />
+
+            {/* Player Controls Row */}
+            <div className="amplify-timeline-controls">
+              {/* Left: Time display */}
+              <div className="amplify-dock-time">
+                <span className="curr">{formatTime(currentTime)}</span>
+                <span className="sep">&nbsp;&nbsp;</span>
+                <span className="total">{formatTime(duration)}</span>
+              </div>
+
+              {/* Center: Main Media Buttons */}
+              <div className="amplify-dock-media-btns">
+                <button 
+                  type="button"
+                  className={`amplify-media-btn ${isShuffle ? 'active' : ''}`}
+                  onClick={() => {
+                    const nextShuffle = !isShuffle;
+                    setIsShuffle(nextShuffle);
+                    triggerNotification(nextShuffle ? "Shuffle enabled" : "Shuffle disabled");
+                  }}
+                  title={isShuffle ? "Disable Shuffle" : "Enable Shuffle"}
+                >
+                  <Shuffle size={15} />
+                </button>
+                <button 
+                  type="button"
+                  className="amplify-media-btn" 
+                  onClick={handlePrev}
+                  title="Previous Track"
+                >
+                  <SkipBack size={17} fill="currentColor" />
+                </button>
+                <button 
+                  type="button"
+                  className="amplify-media-play-circle" 
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  title={isPlaying ? "Pause" : "Play"}
+                >
+                  {isPlaying ? (
+                    <Pause size={17} fill="currentColor" />
+                  ) : (
+                    <Play size={17} fill="currentColor" style={{ marginLeft: '2px' }} />
+                  )}
+                </button>
+                <button 
+                  type="button"
+                  className="amplify-media-btn" 
+                  onClick={handleNext}
+                  title="Next Track"
+                >
+                  <SkipForward size={17} fill="currentColor" />
+                </button>
+                <button 
+                  type="button"
+                  className={`amplify-media-btn ${isLooping ? 'active' : ''}`}
+                  onClick={() => {
+                    const nextLoop = !isLooping;
+                    setIsLooping(nextLoop);
+                    triggerNotification(nextLoop ? "Repeat enabled" : "Repeat disabled");
+                  }}
+                  title={isLooping ? "Disable Repeat" : "Enable Repeat"}
+                >
+                  <Repeat size={15} />
+                </button>
+              </div>
+
+              {/* Right: Volume Slider */}
+              <div className="amplify-dock-volume">
+                <button 
+                  type="button"
+                  className="amplify-dock-vol-btn"
+                  onClick={() => setIsMuted(!isMuted)}
+                  title={isMuted ? "Unmute" : "Mute"}
+                >
+                  {isMuted || volume === 0 ? <VolumeX size={15} /> : volume < 0.3 ? <Volume1 size={15} /> : <Volume2 size={15} />}
+                </button>
+                <input 
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => {
+                    setVolume(parseFloat(e.target.value));
+                    setIsMuted(false);
+                  }}
+                  className="amplify-volume-slider"
+                />
+              </div>
+            </div>
+          </footer>
         )}
       </main>
 
       {/* ==========================================================================
-         FOOTER: Compact Spotify-like bottom player bar
+         MOBILE BOTTOM NAVIGATION BAR (Native Spotify / Apple Music PWA style)
          ========================================================================== */}
-      {mergedCurrentTrack && (
-        <footer className="crimson-audio-deck animate-slide-in">
-          {/* Left section: Track Info */}
-          <div className="deck-track-info">
-            <div className="deck-cover">
-              <TrackCover track={mergedCurrentTrack} className="folder-collage-full" />
-            </div>
-            <div className="deck-track-details">
-              <span className="deck-track-title truncate" title={mergedCurrentTrack.title}>{mergedCurrentTrack.title}</span>
-              <span className="deck-track-artist truncate">{mergedCurrentTrack.artist}</span>
-            </div>
-            <button 
-              className="deck-like-btn"
-              onClick={() => handleToggleFavorite(mergedCurrentTrack)}
-              style={{
-                marginLeft: '12px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: mergedCurrentTrack.isFavorite ? 'var(--secondary)' : 'var(--text-muted)',
-                transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              title={mergedCurrentTrack.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-            >
-              <Heart 
-                size={14} 
-                fill={mergedCurrentTrack.isFavorite ? 'var(--secondary)' : 'none'} 
-                style={{ filter: mergedCurrentTrack.isFavorite ? 'drop-shadow(0 0 4px var(--secondary-glow))' : 'none' }}
-              />
-            </button>
-          </div>
-
-          {/* Middle section: Compact media slider controls */}
-          <div className="deck-player-controller">
-            <div className="deck-buttons-row">
-              <button 
-                className={`deck-btn ${visualizerMode !== 'none' ? 'active' : ''}`}
-                onClick={handleToggleVisualizer}
-                title="Frequency Audio Visualizer Mode"
-              >
-                <Activity size={13} />
-              </button>
-              <button className="deck-btn" onClick={() => setIsShuffle(!isShuffle)}>
-                <Shuffle size={13} className={isShuffle ? 'active' : ''} />
-              </button>
-              <button className="deck-btn" onClick={handlePrev}><SkipBack size={15} fill="currentColor" /></button>
-              <button className="deck-play-btn" onClick={() => setIsPlaying(!isPlaying)}>
-                {isPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" style={{ marginLeft: '1.5px' }} />}
-              </button>
-              <button className="deck-btn" onClick={handleNext}><SkipForward size={15} fill="currentColor" /></button>
-              <button className="deck-btn" onClick={() => setIsLooping(!isLooping)}>
-                <Repeat size={13} className={isLooping ? 'active' : ''} />
-              </button>
-              <button 
-                className={`deck-btn ${isMiniPlayer ? 'active' : ''}`}
-                onClick={handleToggleMiniPlayer}
-                title={isMiniPlayer ? "Exit Mini-Player" : "Mini-Player Mode"}
-              >
-                <Disc size={13} />
-              </button>
-            </div>
-
-            <div className="deck-seeker-row">
-              <span className="deck-time-lbl">{formatTime(currentTime)}</span>
-              <input 
-                type="range"
-                min={0}
-                max={duration || 100}
-                value={currentTime}
-                onChange={handleSeek}
-                className="deck-seeker-slider"
-              />
-              <span className="deck-time-lbl">{formatTime(duration)}</span>
-            </div>
-          </div>
-
-          {/* Right section: Vol + Visualiser link */}
-          <div className="deck-action-deck">
-            <button 
-              className={`deck-btn ${activeView === 'equalizer' ? 'active' : ''}`}
-              onClick={() => navigateToView('equalizer')}
-              title="Studio DSP Equalizer"
-              style={{ marginRight: '6px' }}
-            >
-              <Sliders size={13} />
-            </button>
-            <button className="deck-btn" onClick={() => setIsMuted(!isMuted)}>
-              {isMuted || volume === 0 ? <VolumeX size={15} /> : volume < 0.3 ? <Volume1 size={15} /> : <Volume2 size={15} />}
-            </button>
-            <input 
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={isMuted ? 0 : volume}
-              onChange={(e) => {
-                setVolume(parseFloat(e.target.value));
-                setIsMuted(false);
-              }}
-              className="deck-volume-slider"
-            />
-          </div>
-        </footer>
-      )}
+      <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
+        <button 
+          className={`mobile-nav-item ${activeView === 'home' ? 'active' : ''}`}
+          onClick={() => navigateToView('home')}
+          aria-label="Home"
+        >
+          <Home size={19} />
+          <span>Home</span>
+        </button>
+        <button 
+          className={`mobile-nav-item ${activeView === 'cloud' ? 'active' : ''}`}
+          onClick={() => navigateToView('cloud')}
+          aria-label="Cloud"
+        >
+          <Globe size={19} />
+          <span>Cloud</span>
+        </button>
+        <button 
+          className={`mobile-nav-item ${activeView === 'library' ? 'active' : ''}`}
+          onClick={() => navigateToView('library')}
+          aria-label="Liked Songs"
+        >
+          <Heart size={19} />
+          <span>Liked</span>
+        </button>
+        <button 
+          className={`mobile-nav-item ${activeView === 'folders' || activeView === 'playlists' ? 'active' : ''}`}
+          onClick={() => navigateToView('folders')}
+          aria-label="Folders"
+        >
+          <Folder size={19} />
+          <span>Library</span>
+        </button>
+        <button 
+          className={`mobile-nav-item ${activeView === 'equalizer' ? 'active' : ''}`}
+          onClick={() => navigateToView('equalizer')}
+          aria-label="Equalizer"
+        >
+          <Sliders size={19} />
+          <span>DSP</span>
+        </button>
+        <button 
+          className={`mobile-nav-item ${activeView === 'settings' ? 'active' : ''}`}
+          onClick={() => navigateToView('settings')}
+          aria-label="Settings"
+        >
+          <Settings size={19} />
+          <span>Settings</span>
+        </button>
+      </nav>
     </div>
 
       {/* --- ADD DIRECTORIES BULK MODAL --- */}
@@ -3162,6 +3760,141 @@ export default function App() {
       />
 
       {/* --- PREMIUM PLAYLIST SELECTOR MODAL --- */}
+      {playlistModal.isOpen && playlistModal.song && (
+        <div 
+          className="modal-backdrop animate-fade-in" 
+          onClick={() => setPlaylistModal({ isOpen: false, song: null, mode: 'add' })}
+        >
+          <div 
+            className="modal-content glass-panel animate-slide-in" 
+            style={{ maxWidth: '440px', padding: '24px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header" style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ListMusic size={22} color="var(--secondary)" />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Add to Playlist</h3>
+              </div>
+              <button 
+                className="close-btn" 
+                onClick={() => setPlaylistModal({ isOpen: false, song: null, mode: 'add' })}
+                aria-label="Close modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Target Song Info Card */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px', 
+              padding: '10px 12px', 
+              background: 'rgba(255,255,255,0.03)', 
+              borderRadius: '12px', 
+              border: '1px solid var(--glass-border)',
+              marginBottom: '18px'
+            }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
+                <TrackCover track={playlistModal.song} className="folder-collage-full" />
+              </div>
+              <div style={{ overflow: 'hidden', flex: 1 }}>
+                <h4 className="truncate" style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600 }}>{playlistModal.song.title}</h4>
+                <p className="truncate" style={{ margin: '2px 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{playlistModal.song.artist}</p>
+              </div>
+            </div>
+
+            {/* Create New Playlist Inline Form */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Create new playlist..." 
+                id="quick-playlist-input"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.target.value.trim()) {
+                    const name = e.target.value.trim();
+                    handleCreatePlaylist(name);
+                    e.target.value = '';
+                  }
+                }}
+                style={{ 
+                  flex: 1, 
+                  padding: '8px 12px', 
+                  borderRadius: '10px', 
+                  background: 'var(--bg-primary)', 
+                  border: '1px solid var(--glass-border)', 
+                  color: 'var(--text-main)', 
+                  fontSize: '0.8rem',
+                  outline: 'none'
+                }}
+              />
+              <button 
+                className="btn-primary" 
+                type="button"
+                onClick={() => {
+                  const input = document.getElementById('quick-playlist-input');
+                  if (input && input.value.trim()) {
+                    handleCreatePlaylist(input.value.trim());
+                    input.value = '';
+                  }
+                }}
+                style={{ padding: '8px 14px', fontSize: '0.78rem', borderRadius: '10px' }}
+              >
+                <Plus size={14} /> Create
+              </button>
+            </div>
+
+            {/* Playlists List */}
+            <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {playlists.length > 0 ? (
+                playlists.map((pl) => {
+                  const isIncluded = (pl.songIds || []).includes(playlistModal.song.id);
+                  return (
+                    <div 
+                      key={pl.id}
+                      onClick={() => handleAddSongToPlaylist(playlistModal.song.id, pl.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        background: isIncluded ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255,255,255,0.02)',
+                        border: isIncluded ? '1px solid var(--secondary)' : '1px solid var(--glass-border)',
+                        cursor: 'pointer',
+                        transition: 'var(--transition-smooth)'
+                      }}
+                      className="playlist-modal-item"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <ListMusic size={16} color={isIncluded ? 'var(--secondary)' : 'var(--text-muted)'} />
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>{pl.name}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{(pl.songIds || []).length} songs</div>
+                        </div>
+                      </div>
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        fontWeight: 600, 
+                        color: isIncluded ? 'var(--secondary)' : 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        {isIncluded ? <><CheckCircle size={14} /> Added</> : <><Plus size={14} /> Add</>}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                  No playlists created yet. Use the field above to make your first playlist!
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -3169,7 +3902,7 @@ export default function App() {
 // ==========================================================================
 // COMPONENT: AudioVisualizer (High-performance React/Canvas Audio Visualizer)
 // ==========================================================================
-function AudioVisualizer({ analyser, mode }) {
+function AudioVisualizer({ analyser, mode, isDocumentVisible = true, isMobile = false }) {
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
 
@@ -3181,7 +3914,7 @@ function AudioVisualizer({ analyser, mode }) {
     if (!ctx) return;
 
     let particles = [];
-    const maxParticles = 70;
+    const maxParticles = isMobile ? 35 : 70;
 
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
@@ -3207,7 +3940,7 @@ function AudioVisualizer({ analyser, mode }) {
     initParticles();
 
     const draw = () => {
-      if (mode === 'none') {
+      if (mode === 'none' || !isDocumentVisible) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         return;
       }
@@ -3322,7 +4055,7 @@ function AudioVisualizer({ analyser, mode }) {
       cancelAnimationFrame(animationRef.current);
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [analyser, mode]);
+  }, [analyser, mode, isDocumentVisible, isMobile]);
 
   if (mode === 'none') return null;
 

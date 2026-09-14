@@ -288,6 +288,25 @@
 }
 
 @media (max-width: 600px) {
+  .modal-backdrop {
+    padding: 0.75rem !important;
+  }
+  .modal-content {
+    max-height: 92dvh !important;
+    border-radius: 18px !important;
+  }
+  .modal-header {
+    padding: 1rem 1.25rem !important;
+  }
+  .modal-form {
+    padding: 1rem 1.25rem !important;
+    gap: 1rem !important;
+    overflow-y: auto !important;
+  }
+  .modal-tabs {
+    padding: 0 1rem !important;
+    gap: 1rem !important;
+  }
   .form-grid {
     grid-template-columns: 1fr;
     gap: 1rem;
