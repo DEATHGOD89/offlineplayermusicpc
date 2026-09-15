@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { 
   Search, 
   Plus, 
@@ -228,6 +228,17 @@ const getCoverUrl = (track) => {
   return coverUrlCache.get(track.id);
 };
 
+const getTrackAudioUrl = (track) => {
+  if (!track) return null;
+  if (track.audioBlob) {
+    if (!audioUrlCache.has(track.id)) {
+      audioUrlCache.set(track.id, URL.createObjectURL(track.audioBlob));
+    }
+    return audioUrlCache.get(track.id);
+  }
+  return track.url || null;
+};
+
 const getCustomBgUrl = (bg) => {
   if (!bg || !bg.blob) return null;
   if (!customBgUrlCache.has(bg.id)) {
@@ -289,16 +300,17 @@ const revokeTrackUrls = (trackId) => {
 // ==========================================================================
 // COMPONENT: TrackCover (Synchronous, zero-flicker, memory-leak-safe cover art)
 // ==========================================================================
-function TrackCover({ track, className = "", size = "small" }) {
+const TrackCover = memo(function TrackCover({ track, className = "", size = "small" }) {
   const url = getCoverUrl(track);
 
   if (url) {
     return (
       <img 
         src={url} 
-        alt={track.title} 
+        alt={track?.title || 'Track'} 
         className={className} 
         loading="lazy"
+        decoding="async"
         onError={(e) => {
           e.currentTarget.style.display = 'none';
         }}
@@ -321,7 +333,100 @@ function TrackCover({ track, className = "", size = "small" }) {
       <Music size={size === "large" ? 34 : (size === "small" ? 18 : 22)} strokeWidth={2.2} style={{ opacity: 0.85 }} />
     </div>
   );
-}
+});
+
+// ==========================================================================
+// COMPONENT: TrackRow (High-performance memoized song row for 60/120fps list rendering)
+// ==========================================================================
+const TrackRow = memo(function TrackRow({
+  song,
+  idx,
+  isCurrent,
+  isPlaying,
+  isMenuOpen,
+  onPlay,
+  onToggleMenu,
+  onToggleFavorite,
+  onAddToPlaylist,
+  onOpenDsp,
+  onDelete
+}) {
+  return (
+    <div 
+      className={`amplify-track-row ${isCurrent ? 'active' : ''}`}
+      onClick={onPlay}
+    >
+      {/* Index / Drag Handle */}
+      <div className="amplify-track-handle">
+        {idx < 2 ? (
+          <span className="amplify-track-num">{idx + 1}.</span>
+        ) : (
+          <span className="amplify-track-drag">≡</span>
+        )}
+      </div>
+
+      {/* Thumbnail */}
+      <div className="amplify-track-thumb">
+        <TrackCover track={song} className="amplify-thumb-img" />
+        {isCurrent && isPlaying && (
+          <div className="amplify-thumb-playing-indicator">
+            <span className="bar b1"></span>
+            <span className="bar b2"></span>
+            <span className="bar b3"></span>
+          </div>
+        )}
+      </div>
+
+      {/* Title & Artist */}
+      <div className="amplify-track-meta">
+        <span className="amplify-track-title truncate">{song.title}</span>
+        <span className="amplify-track-artist truncate">{song.artist}</span>
+      </div>
+
+      {/* Duration */}
+      <span className="amplify-track-duration">
+        {formatTime(song.duration)}
+      </span>
+
+      {/* More actions menu */}
+      <div className="amplify-track-menu-container">
+        <button 
+          type="button"
+          className={`amplify-track-menu-btn ${isMenuOpen ? 'active' : ''}`}
+          onClick={onToggleMenu}
+          title="Track options"
+        >
+          <MoreHorizontal size={17} />
+        </button>
+
+        {isMenuOpen && (
+          <div className="amplify-track-popover animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={onPlay}>
+              <Play size={13} fill="currentColor" />
+              <span>Play Now</span>
+            </button>
+            <button type="button" onClick={onToggleFavorite}>
+              <Heart size={13} fill={song.isFavorite ? 'var(--primary)' : 'none'} color={song.isFavorite ? 'var(--primary)' : 'currentColor'} />
+              <span>{song.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</span>
+            </button>
+            <button type="button" onClick={onAddToPlaylist}>
+              <Plus size={13} />
+              <span>Add to Playlist...</span>
+            </button>
+            <button type="button" onClick={onOpenDsp}>
+              <Sliders size={13} />
+              <span>Cinematic DSP EQ</span>
+            </button>
+            <button type="button" className="delete-opt" onClick={onDelete}>
+              <Trash2 size={13} />
+              <span>Delete Track</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 // ==========================================================================
 // COMPONENT: FolderCollage (Synchronous dynamic collage generator)
@@ -656,7 +761,10 @@ export default function App() {
     return allSongs.find(s => s.id === currentTrack.id) || currentTrack;
   }, [currentTrack, allSongs]);
 
-  // Dynamic Ambient Glow Color extraction (kept for visualizer/particle colors)
+  // Cache for dynamic ambient colors to eliminate repeated canvas extraction
+  const ambientColorCache = useRef(new Map());
+
+  // Dynamic Ambient Glow Color extraction
   useEffect(() => {
     if (!mergedCurrentTrack) {
       document.documentElement.style.setProperty('--glow-color-a', 'var(--primary)');
@@ -664,9 +772,6 @@ export default function App() {
       document.documentElement.style.setProperty('--glow-color-c', 'var(--primary-glow)');
       return;
     }
-
-    let active = true;
-    const url = getCoverUrl(mergedCurrentTrack);
 
     const fallbackColors = () => {
       const text = mergedCurrentTrack.title;
@@ -678,11 +783,32 @@ export default function App() {
       const h2 = (h1 + 45) % 360;
       const h3 = (h1 + 180) % 360;
       
-      document.documentElement.style.setProperty('--glow-color-a', `hsl(${h1}, 70%, 55%)`);
-      document.documentElement.style.setProperty('--glow-color-b', `hsl(${h2}, 80%, 45%)`);
-      document.documentElement.style.setProperty('--glow-color-c', `hsl(${h3}, 65%, 50%)`);
+      const cA = `hsl(${h1}, 70%, 55%)`;
+      const cB = `hsl(${h2}, 80%, 45%)`;
+      const cC = `hsl(${h3}, 65%, 50%)`;
+      document.documentElement.style.setProperty('--glow-color-a', cA);
+      document.documentElement.style.setProperty('--glow-color-b', cB);
+      document.documentElement.style.setProperty('--glow-color-c', cC);
+      return { cA, cB, cC };
     };
 
+    // On mobile devices, always use fast hash-based colors to prevent GPU readback stall and jank!
+    if (isMobile) {
+      fallbackColors();
+      return;
+    }
+
+    // Check cache
+    if (ambientColorCache.current.has(mergedCurrentTrack.id)) {
+      const { cA, cB, cC } = ambientColorCache.current.get(mergedCurrentTrack.id);
+      document.documentElement.style.setProperty('--glow-color-a', cA);
+      document.documentElement.style.setProperty('--glow-color-b', cB);
+      document.documentElement.style.setProperty('--glow-color-c', cC);
+      return;
+    }
+
+    let active = true;
+    const url = getCoverUrl(mergedCurrentTrack);
     if (!url) {
       fallbackColors();
       return;
@@ -708,11 +834,15 @@ export default function App() {
         const r2 = data[48], g2 = data[49], b2 = data[50];
         const r3 = data[72], g3 = data[73], b3 = data[74];
         
-        document.documentElement.style.setProperty('--glow-color-a', `rgb(${r1}, ${g1}, ${b1})`);
-        document.documentElement.style.setProperty('--glow-color-b', `rgb(${r2}, ${g2}, ${b2})`);
-        document.documentElement.style.setProperty('--glow-color-c', `rgb(${r3}, ${g3}, ${b3})`);
+        const cA = `rgb(${r1}, ${g1}, ${b1})`;
+        const cB = `rgb(${r2}, ${g2}, ${b2})`;
+        const cC = `rgb(${r3}, ${g3}, ${b3})`;
+
+        ambientColorCache.current.set(mergedCurrentTrack.id, { cA, cB, cC });
+        document.documentElement.style.setProperty('--glow-color-a', cA);
+        document.documentElement.style.setProperty('--glow-color-b', cB);
+        document.documentElement.style.setProperty('--glow-color-c', cC);
       } catch (err) {
-        console.error("Failed to extract image colors:", err);
         fallbackColors();
       }
     };
@@ -725,7 +855,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [mergedCurrentTrack]);
+  }, [mergedCurrentTrack, isMobile]);
 
   const handleToggleVisualizer = () => {
     const modes = ['none', 'bars', 'circular', 'particles'];
@@ -1092,41 +1222,53 @@ export default function App() {
 
   // --- PLAYBACK CONTROLLER ---
   const handlePlaySong = (track, newQueue = []) => {
+    if (!track) return;
     if (track?.isCloud && typeof navigator !== 'undefined' && !navigator.onLine) {
       triggerNotification("Offline: Cloud streaming unavailable. Play local tracks!", "error");
       return;
     }
 
+    // 1. Instant Synchronous Audio Start (Immediate Hardware Execution in Touch Context)
+    const audioUrl = getTrackAudioUrl(track);
+    if (audioRef.current && audioUrl) {
+      if (audioRef.current.src !== audioUrl) {
+        audioRef.current.src = audioUrl;
+      }
+      initAudioContext();
+      audioRef.current.play().catch(e => console.log('Instant play error:', e));
+    }
+
     setCurrentTrack(track);
     setIsPlaying(true);
 
-    // Save to recently played list
-    setRecentlyPlayed(prev => {
-      const filtered = prev.filter(s => s.id !== track.id);
-      const updated = [track, ...filtered].slice(0, 10);
-      
-      // Save legacy IDs
-      localStorage.setItem('spoty_recent_ids', JSON.stringify(updated.map(s => s.id)));
-      
-      // Save lightweight song metadata (strip heavy coverBlob/audioBlob to keep localStorage clean)
-      const cleanUpdated = updated.map(s => ({
-        id: s.id,
-        title: s.title,
-        artist: s.artist,
-        album: s.album,
-        genre: s.genre,
-        duration: s.duration,
-        coverUrl: s.coverUrl,
-        url: s.url,
-        isCloud: s.isCloud,
-        isFavorite: s.isFavorite,
-        likes: s.likes,
-        addedAt: s.addedAt
-      }));
-      localStorage.setItem('spoty_recent_songs', JSON.stringify(cleanUpdated));
-      
-      return updated;
-    });
+    // 2. Offload localStorage I/O from the 16ms animation frame
+    setTimeout(() => {
+      setRecentlyPlayed(prev => {
+        const filtered = prev.filter(s => s.id !== track.id);
+        const updated = [track, ...filtered].slice(0, 10);
+        try {
+          localStorage.setItem('spoty_recent_ids', JSON.stringify(updated.map(s => s.id)));
+          const cleanUpdated = updated.map(s => ({
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            album: s.album,
+            genre: s.genre,
+            duration: s.duration,
+            coverUrl: s.coverUrl,
+            url: s.url,
+            isCloud: s.isCloud,
+            isFavorite: s.isFavorite,
+            likes: s.likes,
+            addedAt: s.addedAt
+          }));
+          localStorage.setItem('spoty_recent_songs', JSON.stringify(cleanUpdated));
+        } catch (e) {
+          console.warn("Storage sync failed:", e);
+        }
+        return updated;
+      });
+    }, 60);
 
     if (newQueue.length > 0) {
       setPlayQueue(newQueue);
@@ -1143,27 +1285,19 @@ export default function App() {
     if (!audioRef.current) return;
     const syncAudioPlayback = async () => {
       if (mergedCurrentTrack) {
-        let url = null;
-        if (mergedCurrentTrack.audioBlob) {
-          if (!audioUrlCache.has(mergedCurrentTrack.id)) {
-            audioUrlCache.set(mergedCurrentTrack.id, URL.createObjectURL(mergedCurrentTrack.audioBlob));
-          }
-          url = audioUrlCache.get(mergedCurrentTrack.id);
-        } else if (mergedCurrentTrack.url) {
-          url = mergedCurrentTrack.url;
-        }
-
+        const url = getTrackAudioUrl(mergedCurrentTrack);
         if (url) {
           if (audioRef.current.src !== url) {
             audioRef.current.src = url;
-            audioRef.current.load();
           }
           if (isPlaying) {
             initAudioContext();
             try {
-              await audioRef.current.play();
+              if (audioRef.current.paused) {
+                await audioRef.current.play();
+              }
             } catch (e) {
-              console.log('Playback error:', e);
+              console.log('Playback sync error:', e);
             }
           } else {
             audioRef.current.pause();
@@ -1207,8 +1341,17 @@ export default function App() {
     } else if (nextIdx >= playQueue.length) {
       nextIdx = 0;
     }
+    const nextTrack = playQueue[nextIdx];
+    if (nextTrack) {
+      const audioUrl = getTrackAudioUrl(nextTrack);
+      if (audioRef.current && audioUrl) {
+        if (audioRef.current.src !== audioUrl) audioRef.current.src = audioUrl;
+        initAudioContext();
+        audioRef.current.play().catch(e => console.log('Instant next play:', e));
+      }
+    }
     setQueueIndex(nextIdx);
-    setCurrentTrack(playQueue[nextIdx]);
+    setCurrentTrack(nextTrack);
     setIsPlaying(true);
   };
 
@@ -1218,8 +1361,17 @@ export default function App() {
     if (prevIdx < 0) {
       prevIdx = playQueue.length - 1;
     }
+    const prevTrack = playQueue[prevIdx];
+    if (prevTrack) {
+      const audioUrl = getTrackAudioUrl(prevTrack);
+      if (audioRef.current && audioUrl) {
+        if (audioRef.current.src !== audioUrl) audioRef.current.src = audioUrl;
+        initAudioContext();
+        audioRef.current.play().catch(e => console.log('Instant prev play:', e));
+      }
+    }
     setQueueIndex(prevIdx);
-    setCurrentTrack(playQueue[prevIdx]);
+    setCurrentTrack(prevTrack);
     setIsPlaying(true);
   };
 
@@ -3447,96 +3599,41 @@ export default function App() {
             {/* 3. FROSTED TRACK ROWS */}
             <div className="amplify-track-list">
               {displaySongs.length > 0 ? (
-                displaySongs.map((song, idx) => {
-                  const isCurrent = currentTrack && currentTrack.id === song.id;
-                  const isMenuOpen = activeTrackMenuId === song.id;
-                  return (
-                    <div 
-                      key={song.id}
-                      className={`amplify-track-row ${isCurrent ? 'active' : ''}`}
-                      onClick={() => handlePlaySong(song, displaySongs)}
-                    >
-                      {/* Index / Drag Handle */}
-                      <div className="amplify-track-handle">
-                        {idx < 2 ? (
-                          <span className="amplify-track-num">{idx + 1}.</span>
-                        ) : (
-                          <span className="amplify-track-drag">≡</span>
-                        )}
-                      </div>
-
-                      {/* Thumbnail */}
-                      <div className="amplify-track-thumb">
-                        <TrackCover track={song} className="amplify-thumb-img" />
-                        {isCurrent && isPlaying && (
-                          <div className="amplify-thumb-playing-indicator">
-                            <span className="bar b1"></span>
-                            <span className="bar b2"></span>
-                            <span className="bar b3"></span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Title & Artist */}
-                      <div className="amplify-track-meta">
-                        <span className="amplify-track-title truncate">{song.title}</span>
-                        <span className="amplify-track-artist truncate">{song.artist}</span>
-                      </div>
-
-                      {/* Duration */}
-                      <span className="amplify-track-duration">
-                        {formatTime(song.duration)}
-                      </span>
-
-                      {/* More actions menu */}
-                      <div className="amplify-track-menu-container">
-                        <button 
-                          type="button"
-                          className={`amplify-track-menu-btn ${isMenuOpen ? 'active' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveTrackMenuId(prev => prev === song.id ? null : song.id);
-                          }}
-                          title="Track options"
-                        >
-                          <MoreHorizontal size={17} />
-                        </button>
-
-                        {isMenuOpen && (
-                          <div className="amplify-track-popover animate-fade-in" onClick={(e) => e.stopPropagation()}>
-                            <button type="button" onClick={() => { handlePlaySong(song, displaySongs); setActiveTrackMenuId(null); }}>
-                              <Play size={13} fill="currentColor" />
-                              <span>Play Now</span>
-                            </button>
-                            <button type="button" onClick={() => { handleToggleFavorite(song); setActiveTrackMenuId(null); }}>
-                              <Heart size={13} fill={song.isFavorite ? 'var(--primary)' : 'none'} color={song.isFavorite ? 'var(--primary)' : 'currentColor'} />
-                              <span>{song.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</span>
-                            </button>
-                            <button type="button" onClick={() => { handleAddSongToPlaylistCustom(song); setActiveTrackMenuId(null); }}>
-                              <Plus size={13} />
-                              <span>Add to Playlist...</span>
-                            </button>
-                            <button type="button" onClick={() => { navigateToView('equalizer'); setActiveTrackMenuId(null); }}>
-                              <Sliders size={13} />
-                              <span>Cinematic DSP EQ</span>
-                            </button>
-                            <button type="button" className="delete-opt" onClick={async () => {
-                              setActiveTrackMenuId(null);
-                              if (song.isCloud) {
-                                handleDeleteCloudSong(song.id, song.title);
-                              } else {
-                                handleDeleteSingleSong(song.id, song.title);
-                              }
-                            }}>
-                              <Trash2 size={13} />
-                              <span>Delete Track</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
+                displaySongs.map((song, idx) => (
+                  <TrackRow 
+                    key={song.id}
+                    song={song}
+                    idx={idx}
+                    isCurrent={currentTrack && currentTrack.id === song.id}
+                    isPlaying={isPlaying && currentTrack && currentTrack.id === song.id}
+                    isMenuOpen={activeTrackMenuId === song.id}
+                    onPlay={() => handlePlaySong(song, displaySongs)}
+                    onToggleMenu={(e) => {
+                      e.stopPropagation();
+                      setActiveTrackMenuId(prev => prev === song.id ? null : song.id);
+                    }}
+                    onToggleFavorite={() => {
+                      handleToggleFavorite(song);
+                      setActiveTrackMenuId(null);
+                    }}
+                    onAddToPlaylist={() => {
+                      handleAddSongToPlaylistCustom(song);
+                      setActiveTrackMenuId(null);
+                    }}
+                    onOpenDsp={() => {
+                      navigateToView('equalizer');
+                      setActiveTrackMenuId(null);
+                    }}
+                    onDelete={() => {
+                      setActiveTrackMenuId(null);
+                      if (song.isCloud) {
+                        handleDeleteCloudSong(song.id, song.title);
+                      } else {
+                        handleDeleteSingleSong(song.id, song.title);
+                      }
+                    }}
+                  />
+                ))
               ) : (
                 <div className="amplify-empty-state">
                   <Music size={38} className="empty-icon" />
