@@ -2372,36 +2372,6 @@ export default function App() {
                       Streaming dynamically shared audio files uploaded by users globally via Supabase.
                     </p>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button 
-                      className="btn-secondary"
-                      onClick={loadCloudData}
-                      disabled={isLoadingCloud}
-                      style={{ padding: '6px 12px', fontSize: '0.75rem' }}
-                    >
-                      {isLoadingCloud ? 'Refreshing...' : '🔄 Refresh Shared'}
-                    </button>
-                    <button 
-                      className="btn-danger-outline"
-                      onClick={() => {
-                        if (confirm("Disconnect from cloud database and clear keys?")) {
-                          localStorage.setItem('spoty_supabase_disconnected', 'true');
-                          localStorage.removeItem('spoty_supabase_url');
-                          localStorage.removeItem('spoty_supabase_anon_key');
-                          
-                          setSbUrl('');
-                          setSbAnonKey('');
-                          
-                          setIsCloudConfigured(false);
-                          setCloudSongs([]);
-                          triggerNotification("Cloud disconnected.");
-                        }
-                      }}
-                      style={{ padding: '6px 12px', fontSize: '0.75rem' }}
-                    >
-                      Disconnect Cloud
-                    </button>
-                  </div>
                 </div>
 
                 {/* DYNAMIC STORAGE CAPACITY BAR */}
