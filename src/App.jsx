@@ -639,7 +639,11 @@ export default function App() {
     return localStorage.getItem('spoty_username') || '';
   });
   const [activeTheme, setActiveTheme] = useState(() => {
-    return localStorage.getItem('spoty_color_theme') || 'terracotta';
+    const saved = localStorage.getItem('spoty_color_theme');
+    if (saved && saved !== 'terracotta') {
+      localStorage.setItem('spoty_color_theme', 'terracotta');
+    }
+    return 'terracotta';
   });
   
   // --- CLOUD ONLINE MODE STATES ---
@@ -2720,10 +2724,6 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
                 {[
                   { id: 'terracotta', name: 'Terracotta Rose', color1: '#8e2e3e', color2: '#f3735d', desc: 'Warm Peach & Crimson' },
-                  { id: 'black', name: 'Carbon Black', color1: '#121212', color2: '#00e5ff', desc: 'Cyber Neon Electric' },
-                  { id: 'white', name: 'Frost White', color1: '#ffffff', color2: '#4f46e5', desc: 'Frosted Glass Light' },
-                  { id: 'green', name: 'Forest Green', color1: '#081a14', color2: '#10b981', desc: 'Moss & Emerald Jade' },
-                  { id: 'orange', name: 'Cyber Orange', color1: '#19120c', color2: '#f97316', desc: 'Warm Honey Amber' },
                 ].map((t) => {
                   const isSelected = activeTheme === t.id;
                   return (
