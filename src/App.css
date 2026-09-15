@@ -1757,7 +1757,11 @@ html, body,
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
-  contain: content;
+}
+
+.amplify-track-row.menu-open,
+.amplify-track-row:has(.amplify-track-popover) {
+  z-index: 1000 !important;
 }
 
 .amplify-track-row:hover {
@@ -1865,65 +1869,109 @@ html, body,
 
 .amplify-track-menu-container {
   position: relative;
+  z-index: 10;
 }
 
 .amplify-track-menu-btn {
   background: transparent;
   border: none;
   color: #94a3b8;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
   transition: var(--transition-smooth);
+}
+
+.amplify-track-menu-btn svg {
+  pointer-events: none;
 }
 
 .amplify-track-menu-btn:hover,
 .amplify-track-menu-btn.active {
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .amplify-track-popover {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   right: 0;
-  margin-top: 4px;
-  min-width: 170px;
-  background: rgba(20, 16, 26, 0.95);
+  min-width: 175px;
+  background: rgba(20, 16, 26, 0.98);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 12px;
   padding: 6px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  z-index: 100;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+  z-index: 1002;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
+  opacity: 1 !important;
+  pointer-events: auto;
+  animation: popoverFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.amplify-track-popover.popover-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.75);
+  animation: popoverFadeUp 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes popoverFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .amplify-track-popover button {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 8px 12px;
   border-radius: 8px;
   background: transparent;
   border: none;
-  color: #cbd5e1;
-  font-size: 0.75rem;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  touch-action: manipulation;
+  transition: background 0.12s ease, color 0.12s ease;
   width: 100%;
   text-align: left;
 }
 
+.amplify-track-popover button svg {
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
 .amplify-track-popover button:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
 }
 
@@ -1932,7 +1980,7 @@ html, body,
 }
 
 .amplify-track-popover button.delete-opt:hover {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.18);
   color: #ffffff;
 }
 

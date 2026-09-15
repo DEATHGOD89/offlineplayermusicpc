@@ -344,6 +344,7 @@ const TrackRow = memo(function TrackRow({
   isCurrent,
   isPlaying,
   isMenuOpen,
+  openUpward,
   onPlay,
   onToggleMenu,
   onToggleFavorite,
@@ -353,7 +354,7 @@ const TrackRow = memo(function TrackRow({
 }) {
   return (
     <div 
-      className={`amplify-track-row ${isCurrent ? 'active' : ''}`}
+      className={`amplify-track-row ${isCurrent ? 'active' : ''} ${isMenuOpen ? 'menu-open' : ''}`}
       onClick={onPlay}
     >
       {/* Index / Drag Handle */}
@@ -396,11 +397,11 @@ const TrackRow = memo(function TrackRow({
           onClick={onToggleMenu}
           title="Track options"
         >
-          <MoreHorizontal size={17} />
+          <MoreHorizontal size={17} style={{ pointerEvents: 'none' }} />
         </button>
 
         {isMenuOpen && (
-          <div className="amplify-track-popover animate-fade-in" onClick={(e) => e.stopPropagation()}>
+          <div className={`amplify-track-popover ${openUpward ? 'popover-up' : ''}`} onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={onPlay}>
               <Play size={13} fill="currentColor" />
               <span>Play Now</span>
@@ -3577,7 +3578,11 @@ export default function App() {
                     isCurrent={currentTrack && currentTrack.id === song.id}
                     isPlaying={isPlaying && currentTrack && currentTrack.id === song.id}
                     isMenuOpen={activeTrackMenuId === song.id}
-                    onPlay={() => handlePlaySong(song, displaySongs)}
+                    openUpward={idx >= displaySongs.length - 3 && idx > 2}
+                    onPlay={() => {
+                      handlePlaySong(song, displaySongs);
+                      setActiveTrackMenuId(null);
+                    }}
                     onToggleMenu={(e) => {
                       e.stopPropagation();
                       setActiveTrackMenuId(prev => prev === song.id ? null : song.id);
