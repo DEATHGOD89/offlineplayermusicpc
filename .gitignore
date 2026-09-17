@@ -34,3 +34,8 @@ win-unpacked/
 builder-debug.yml
 .icon-ico/
 
+# Environment Variables
+.env
+.env.*
+!.env.example
+
