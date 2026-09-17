@@ -151,9 +151,9 @@ export async function uploadSongToCloud(title, artist, album, genre, audioFile, 
       .from('cloud_songs')
       .select('*', { count: 'exact', head: true });
 
-    const CLOUD_STORAGE_LIMIT = 1250; // 5 GB vault (~1,250 songs)
+    const CLOUD_STORAGE_LIMIT = 1000; // 4 GB safety cap (~1,000 songs @ ~4MB each)
     if (!countError && count !== null && count >= CLOUD_STORAGE_LIMIT) {
-      throw new Error(`Cloud Storage Limit Reached (Max ${CLOUD_STORAGE_LIMIT} songs). Please delete an existing track to free up space!`);
+      throw new Error(`Cloud Storage 4 GB Limit Reached (Max ${CLOUD_STORAGE_LIMIT} songs). Uploads blocked to protect your free storage tier. Please delete an existing track to free up space!`);
     }
 
     const songId = 'cloud-' + Math.random().toString(36).substring(2, 11);
