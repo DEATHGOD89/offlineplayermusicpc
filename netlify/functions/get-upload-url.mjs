@@ -78,7 +78,7 @@ export const handler = async (event) => {
     });
 
     const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
-    const publicUrl = `https://${bucket}.s3.filebase.com/${key}`;
+    const publicUrl = `https://${bucket}.s3.filebase.io/${key}`;
 
     return {
       statusCode: 200,
