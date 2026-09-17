@@ -36,7 +36,8 @@ import {
   Compass,
   ChevronDown,
   Edit3,
-  MoreHorizontal
+  MoreHorizontal,
+  RefreshCw
 } from 'lucide-react';
 
 import UploadModal from './components/UploadModal/UploadModal';
@@ -59,7 +60,8 @@ import {
   getCloudSongs,
   likeCloudSong,
   deleteCloudSong,
-  isSupabaseConfigured
+  isSupabaseConfigured,
+  syncFilebaseVault
 } from './services/supabase';
 
 import './App.css';
@@ -650,6 +652,7 @@ export default function App() {
   // --- CLOUD ONLINE MODE STATES ---
   const [cloudSongs, setCloudSongs] = useState([]);
   const [isLoadingCloud, setIsLoadingCloud] = useState(false);
+  const [isSyncingVault, setIsSyncingVault] = useState(false);
   const [isCloudConfigured, setIsCloudConfigured] = useState(() => isSupabaseConfigured());
 
   const [sbUrl, setSbUrl] = useState(() => localStorage.getItem('spoty_supabase_url') || '');
@@ -1146,6 +1149,20 @@ export default function App() {
     }
   };
 
+  const handleSyncVault = async () => {
+    setIsSyncingVault(true);
+    triggerNotification("Connecting to Filebase & indexing IPFS CIDs...", "info");
+    try {
+      const res = await syncFilebaseVault();
+      triggerNotification(`Vault Synced! Updated ${res.supabaseSongsUpdated ?? res.totalFilebaseObjects} tracks with IPFS links. 🎉`);
+      await loadCloudData();
+    } catch (err) {
+      triggerNotification(err.message || "Failed to sync vault.", "error");
+    } finally {
+      setIsSyncingVault(false);
+    }
+  };
+
   useEffect(() => {
     if (!isCloudConfigured) return;
     // Only load if not loaded yet, or when navigating to cloud view if empty
@@ -1330,6 +1347,30 @@ export default function App() {
   const handleLoadedMetadata = () => {
     if (!audioRef.current) return;
     setDuration(audioRef.current.duration);
+  };
+
+  const handleAudioError = (e) => {
+    const currentSrc = audioRef.current?.src || '';
+    if (currentSrc.includes('/ipfs/')) {
+      const match = currentSrc.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+      if (match && match[1]) {
+        const cid = match[1];
+        if (currentSrc.includes('ipfs.filebase.io')) {
+          console.warn("ipfs.filebase.io delay, switching to pinata gateway...");
+          audioRef.current.src = `https://gateway.pinata.cloud/ipfs/${cid}`;
+          audioRef.current.play().catch(() => {});
+          return;
+        } else if (currentSrc.includes('pinata')) {
+          console.warn("pinata delay, switching to ipfs.io gateway...");
+          audioRef.current.src = `https://ipfs.io/ipfs/${cid}`;
+          audioRef.current.play().catch(() => {});
+          return;
+        }
+      }
+    }
+    if (currentTrack?.isCloud) {
+      triggerNotification(`Playback error on "${currentTrack.title}". Click "Sync Filebase Vault" to update!`, "error");
+    }
   };
 
   const handleSeek = (e) => {
@@ -1857,6 +1898,7 @@ export default function App() {
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
+        onError={handleAudioError}
       />
       {/* Toast Stack (Fixed bottom-right above the player bar) */}
       <div className="toast-stack-container">
@@ -2428,6 +2470,30 @@ export default function App() {
                       <span><strong>{Math.max(0, 4000 - Math.round(cloudSongs.length * 4))} MB Remaining</strong> (of 4,000MB / 4GB limit)</span>
                     </div>
                   </div>
+
+                  <button
+                    className="btn-secondary"
+                    onClick={handleSyncVault}
+                    disabled={isSyncingVault}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '7px',
+                      padding: '8px 16px',
+                      borderRadius: '10px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: isSyncingVault ? 'not-allowed' : 'pointer',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid var(--glass-border)',
+                      color: 'var(--text-main)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    title="Scan Filebase storage and link IPFS streaming URLs to all tracks"
+                  >
+                    <RefreshCw size={13} style={{ animation: isSyncingVault ? 'spin 1s linear infinite' : 'none' }} />
+                    <span>{isSyncingVault ? 'Syncing IPFS...' : 'Sync Filebase Vault'}</span>
+                  </button>
                 </div>
 
                 {isLoadingCloud ? (

@@ -104,7 +104,7 @@ async function uploadToFilebase(file, fileName, folder = 'songs') {
       return null;
     }
 
-    const { uploadUrl, publicUrl } = await res.json();
+    const { uploadUrl, publicUrl, key } = await res.json();
     if (!uploadUrl || !publicUrl) return null;
 
     const uploadRes = await fetch(uploadUrl, {
@@ -120,10 +120,48 @@ async function uploadToFilebase(file, fileName, folder = 'songs') {
       return null;
     }
 
+    // Retrieve IPFS CID (Filebase 100% free permanent public gateway)
+    try {
+      if (key) {
+        const cidRes = await fetch('/.netlify/functions/get-ipfs-cid', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key })
+        });
+        if (cidRes.ok) {
+          const cidData = await cidRes.json();
+          if (cidData.ipfsUrl) {
+            return cidData.ipfsUrl;
+          }
+        }
+      }
+    } catch (cidErr) {
+      console.warn("Could not retrieve IPFS CID, falling back to publicUrl:", cidErr);
+    }
+
     return publicUrl;
   } catch (err) {
     console.warn("Filebase upload skipped/failed, falling back to Supabase:", err);
     return null;
+  }
+}
+
+/**
+ * Triggers serverless synchronization to map all Filebase IPFS CIDs to Supabase cloud_songs.
+ */
+export async function syncFilebaseVault() {
+  try {
+    const res = await fetch('/.netlify/functions/sync-filebase-ipfs', {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Sync returned status ${res.status}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Failed to sync Filebase vault:", err);
+    throw err;
   }
 }
 
