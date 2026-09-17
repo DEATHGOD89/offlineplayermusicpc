@@ -13,6 +13,8 @@
     "desktop:package": "electron-builder --win --dir"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1134.0",
+    "@aws-sdk/s3-request-presigner": "^3.1134.0",
     "@supabase/supabase-js": "^2.106.2",
     "jsmediatags": "^3.9.7",
     "lucide-react": "^1.17.0",

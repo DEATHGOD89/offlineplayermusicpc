@@ -84,7 +84,51 @@ export async function getCloudSongs() {
 }
 
 /**
- * Uploads a track and artwork to Supabase Storage & inserts record in table 'cloud_songs'.
+ * Uploads a file to Filebase S3 bucket via Netlify serverless function presigned URL.
+ * Returns public URL if successful, or null if Filebase is unavailable.
+ */
+async function uploadToFilebase(file, fileName, folder = 'songs') {
+  try {
+    const res = await fetch('/.netlify/functions/get-upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName,
+        contentType: file.type || (folder === 'covers' ? 'image/jpeg' : 'audio/mpeg'),
+        folder
+      })
+    });
+
+    if (!res.ok) {
+      console.warn("Filebase presigned URL endpoint returned status:", res.status);
+      return null;
+    }
+
+    const { uploadUrl, publicUrl } = await res.json();
+    if (!uploadUrl || !publicUrl) return null;
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type || (folder === 'covers' ? 'image/jpeg' : 'audio/mpeg')
+      }
+    });
+
+    if (!uploadRes.ok) {
+      console.warn("Direct upload to Filebase failed with status:", uploadRes.status);
+      return null;
+    }
+
+    return publicUrl;
+  } catch (err) {
+    console.warn("Filebase upload skipped/failed, falling back to Supabase:", err);
+    return null;
+  }
+}
+
+/**
+ * Uploads a track and artwork to Filebase (or Supabase Storage fallback) & inserts record in table 'cloud_songs'.
  */
 export async function uploadSongToCloud(title, artist, album, genre, audioFile, coverFile, uploaderName) {
   const sb = initSupabase();
@@ -102,12 +146,12 @@ export async function uploadSongToCloud(title, artist, album, genre, audioFile, 
   }
 
   try {
-    // Check total cloud songs count to prevent exceeding free tier storage limits
+    // Check total cloud songs count to prevent exceeding 5GB storage limits
     const { count, error: countError } = await sb
       .from('cloud_songs')
       .select('*', { count: 'exact', head: true });
 
-    const CLOUD_STORAGE_LIMIT = 250;
+    const CLOUD_STORAGE_LIMIT = 1250; // 5 GB vault (~1,250 songs)
     if (!countError && count !== null && count >= CLOUD_STORAGE_LIMIT) {
       throw new Error(`Cloud Storage Limit Reached (Max ${CLOUD_STORAGE_LIMIT} songs). Please delete an existing track to free up space!`);
     }
@@ -118,20 +162,26 @@ export async function uploadSongToCloud(title, artist, album, genre, audioFile, 
     const rawAudioExt = audioFile.name ? audioFile.name.split('.').pop().toLowerCase() : 'mp3';
     const audioExt = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'webm'].includes(rawAudioExt) ? rawAudioExt : 'mp3';
     const audioContentType = audioFile.type || 'audio/mpeg';
-    const audioPath = `songs/${songId}_audio.${audioExt}`;
+    const audioFileName = `${songId}_audio.${audioExt}`;
+    const audioPath = `songs/${audioFileName}`;
 
-    const { error: audioError } = await sb.storage
-      .from('spoty-media')
-      .upload(audioPath, audioFile, { contentType: audioContentType, upsert: true });
+    // Try Filebase 5GB storage first
+    let audioUrl = await uploadToFilebase(audioFile, audioFileName, 'songs');
 
-    if (audioError) throw audioError;
+    // Graceful fallback to Supabase storage if Filebase is unavailable
+    if (!audioUrl) {
+      const { error: audioError } = await sb.storage
+        .from('spoty-media')
+        .upload(audioPath, audioFile, { contentType: audioContentType, upsert: true });
 
-    // Get public URL for audio
-    const { data: audioUrlData } = sb.storage
-      .from('spoty-media')
-      .getPublicUrl(audioPath);
+      if (audioError) throw audioError;
 
-    const audioUrl = audioUrlData.publicUrl;
+      const { data: audioUrlData } = sb.storage
+        .from('spoty-media')
+        .getPublicUrl(audioPath);
+
+      audioUrl = audioUrlData.publicUrl;
+    }
 
     // 2. Upload cover artwork if present with dynamic extension
     let coverUrl = '';
@@ -139,20 +189,24 @@ export async function uploadSongToCloud(title, artist, album, genre, audioFile, 
       const rawCoverExt = coverFile.name ? coverFile.name.split('.').pop().toLowerCase() : 'jpg';
       const coverExt = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(rawCoverExt) ? rawCoverExt : 'jpg';
       const coverContentType = coverFile.type || 'image/jpeg';
-      const coverPath = `covers/${songId}_cover.${coverExt}`;
+      const coverFileName = `${songId}_cover.${coverExt}`;
+      const coverPath = `covers/${coverFileName}`;
 
-      const { error: coverError } = await sb.storage
-        .from('spoty-media')
-        .upload(coverPath, coverFile, { contentType: coverContentType, upsert: true });
+      coverUrl = await uploadToFilebase(coverFile, coverFileName, 'covers');
 
-      if (coverError) throw coverError;
+      if (!coverUrl) {
+        const { error: coverError } = await sb.storage
+          .from('spoty-media')
+          .upload(coverPath, coverFile, { contentType: coverContentType, upsert: true });
 
-      // Get public URL for cover
-      const { data: coverUrlData } = sb.storage
-        .from('spoty-media')
-        .getPublicUrl(coverPath);
+        if (coverError) throw coverError;
 
-      coverUrl = coverUrlData.publicUrl;
+        const { data: coverUrlData } = sb.storage
+          .from('spoty-media')
+          .getPublicUrl(coverPath);
+
+        coverUrl = coverUrlData.publicUrl;
+      }
     }
 
     // 3. Save details to 'cloud_songs' table

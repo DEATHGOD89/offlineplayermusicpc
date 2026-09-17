@@ -2394,38 +2394,38 @@ export default function App() {
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>☁️ Cloud Storage Capacity</span>
-                      {cloudSongs.length >= 240 && (
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>☁️ Cloud Storage Capacity (5 GB Filebase Vault)</span>
+                      {cloudSongs.length >= 1200 && (
                         <span style={{ 
                           fontSize: '0.65rem', 
                           padding: '2px 8px', 
-                          background: cloudSongs.length >= 250 ? 'rgba(255, 75, 75, 0.1)' : 'rgba(255, 165, 0, 0.1)', 
-                          color: cloudSongs.length >= 250 ? '#ff4b4b' : '#ffa500', 
+                          background: cloudSongs.length >= 1250 ? 'rgba(255, 75, 75, 0.1)' : 'rgba(255, 165, 0, 0.1)', 
+                          color: cloudSongs.length >= 1250 ? '#ff4b4b' : '#ffa500', 
                           borderRadius: '20px', 
                           fontWeight: 700 
                         }}>
-                          {cloudSongs.length >= 250 ? '🚨 FULL' : '⚠️ ALMOST FULL'}
+                          {cloudSongs.length >= 1250 ? '🚨 FULL' : '⚠️ ALMOST FULL'}
                         </span>
                       )}
                     </div>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      Using {cloudSongs.length} of 250 slots • <strong>{Math.max(0, 250 - cloudSongs.length)} slots left</strong>
+                      Using {cloudSongs.length} of 1,250 slots • <strong>{Math.max(0, 1250 - cloudSongs.length)} slots left</strong>
                     </span>
                   </div>
 
                   <div style={{ flex: '1', minWidth: '150px', maxWidth: '300px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ width: '100%', height: '8px', background: 'var(--bg-primary)', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
                       <div style={{ 
-                        width: `${Math.min(100, (cloudSongs.length / 250) * 100)}%`, 
+                        width: `${Math.min(100, (cloudSongs.length / 1250) * 100)}%`, 
                         height: '100%', 
-                        background: cloudSongs.length >= 250 ? 'linear-gradient(90deg, #ff4b4b, #ff7b7b)' : 'linear-gradient(90deg, var(--secondary), var(--accent))',
+                        background: cloudSongs.length >= 1250 ? 'linear-gradient(90deg, #ff4b4b, #ff7b7b)' : 'linear-gradient(90deg, var(--secondary), var(--accent))',
                         borderRadius: '10px',
                         transition: 'width 0.5s ease-in-out'
                       }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
                       <span>{Math.round(cloudSongs.length * 4)} MB Est. Used</span>
-                      <span><strong>{Math.max(0, 1000 - Math.round(cloudSongs.length * 4))} MB Remaining</strong> (of 1,000MB free safety limit)</span>
+                      <span><strong>{Math.max(0, 5000 - Math.round(cloudSongs.length * 4))} MB Remaining</strong> (of 5,000MB / 5GB free vault)</span>
                     </div>
                   </div>
                 </div>
