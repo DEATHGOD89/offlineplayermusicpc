@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import songDurations from './songDurations.json';
 
 /**
  * Retrieves the user's custom Supabase configuration from localStorage.
@@ -70,6 +71,7 @@ export async function getCloudSongs() {
       artist: item.artist,
       album: item.album,
       genre: item.genre,
+      duration: item.duration || songDurations[item.id] || 0,
       url: item.url,
       coverUrl: item.cover_url,
       likes: item.likes || 0,

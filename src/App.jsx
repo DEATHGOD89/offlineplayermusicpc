@@ -741,17 +741,27 @@ export default function App() {
   // Combined list of local offline songs and online cloud songs
   const allSongs = useMemo(() => {
     const cloudMap = new Map(cloudSongs.map(cs => [cs.id, cs]));
+    const norm = (t, a) => `${(t || '').trim().toLowerCase()}:::${(a || '').trim().toLowerCase()}`;
+    const cloudByMeta = new Map(cloudSongs.map(cs => [norm(cs.title, cs.artist), cs]));
+    const cloudByUrl = new Map(cloudSongs.filter(cs => cs.url).map(cs => [cs.url, cs]));
     
-    // Process local songs: if they exist in cloud, merge cloud-authoritative fields (like coverUrl, url, likes)
+    // Process local songs: if they exist in cloud, merge cloud-authoritative fields (like coverUrl, url, likes, duration)
+    const matchedCloudIds = new Set();
     const mergedLocalSongs = songs.map(localSong => {
-      const cloudSong = cloudMap.get(localSong.id);
+      const metaKey = norm(localSong.title, localSong.artist);
+      const cloudSong = cloudMap.get(localSong.id) || 
+                        (localSong.url ? cloudByUrl.get(localSong.url) : null) || 
+                        cloudByMeta.get(metaKey);
+
       if (cloudSong) {
+        matchedCloudIds.add(cloudSong.id);
         return {
           ...localSong,
           // Cloud song takes precedence for coverUrl, url, likes since they are uploaded/stored in Supabase
           coverUrl: cloudSong.coverUrl || localSong.coverUrl,
           url: cloudSong.url || localSong.url,
           likes: cloudSong.likes !== undefined ? cloudSong.likes : localSong.likes,
+          duration: localSong.duration || cloudSong.duration || 0,
           isCloud: true
         };
       }
@@ -759,7 +769,7 @@ export default function App() {
     });
 
     const localIds = new Set(songs.map(s => s.id));
-    const uniqueCloudSongs = cloudSongs.filter(cs => !localIds.has(cs.id));
+    const uniqueCloudSongs = cloudSongs.filter(cs => !localIds.has(cs.id) && !matchedCloudIds.has(cs.id));
 
     return [...mergedLocalSongs, ...uniqueCloudSongs];
   }, [songs, cloudSongs]);
@@ -1346,7 +1356,14 @@ export default function App() {
 
   const handleLoadedMetadata = () => {
     if (!audioRef.current) return;
-    setDuration(audioRef.current.duration);
+    const audioDur = Math.round(audioRef.current.duration);
+    setDuration(audioDur);
+    if (mergedCurrentTrack && audioDur > 0) {
+      if (!mergedCurrentTrack.duration || mergedCurrentTrack.duration === 0) {
+        setCloudSongs(prev => prev.map(s => s.id === mergedCurrentTrack.id ? { ...s, duration: audioDur } : s));
+        setSongs(prev => prev.map(s => s.id === mergedCurrentTrack.id ? { ...s, duration: audioDur } : s));
+      }
+    }
   };
 
   const handleAudioError = (e) => {
