@@ -139,12 +139,20 @@ export const handler = async (event) => {
         }
       } else {
         const newSongId = 'cloud-' + Math.random().toString(36).substring(2, 11);
-        const cleanTitle = keyName.replace(/\.(mp3|wav|m4a|aac|flac|ogg)$/i, '').trim();
+        const rawClean = keyName.replace(/\.(mp3|wav|m4a|aac|flac|ogg)$/i, '').trim();
+        let parsedArtist = 'Unknown Artist';
+        let parsedTitle = rawClean;
+        if (rawClean.includes(' - ')) {
+          const parts = rawClean.split(' - ');
+          parsedArtist = parts[0].trim();
+          parsedTitle = parts.slice(1).join(' - ').trim();
+        }
+
         const { error: insertErr } = await sb.from('cloud_songs').insert([{
           id: newSongId,
-          title: cleanTitle,
-          artist: 'Vault Artist',
-          album: 'Filebase Vault',
+          title: parsedTitle,
+          artist: parsedArtist,
+          album: 'Single',
           genre: 'Soundtrack',
           url: item.ipfsUrl,
           cover_url: null,
