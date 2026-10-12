@@ -3,6 +3,9 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[functions."supabase-keep-alive"]
+  schedule = "@daily"
+
 [build.environment]
   NETLIFY_FEEDBACK_DISABLED = "true"
 

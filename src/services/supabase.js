@@ -64,7 +64,7 @@ export async function getCloudSongs() {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data.map(item => ({
+    const formatted = data.map(item => ({
       id: item.id,
       title: item.title,
       artist: item.artist,
@@ -77,8 +77,23 @@ export async function getCloudSongs() {
       addedAt: new Date(item.created_at).getTime(),
       isCloud: true
     }));
+
+    try {
+      localStorage.setItem('spoty_cached_cloud_songs', JSON.stringify(formatted));
+    } catch {}
+
+    return formatted;
   } catch (e) {
-    console.error("Error fetching Supabase cloud songs:", e);
+    console.warn("Supabase unreachable or paused, loading cached cloud songs:", e.message);
+    try {
+      const cached = localStorage.getItem('spoty_cached_cloud_songs');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
     return [];
   }
 }
