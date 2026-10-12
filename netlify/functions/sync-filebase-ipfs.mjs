@@ -25,7 +25,7 @@ export const handler = async (event) => {
       statusCode: 500,
       headers,
       body: JSON.stringify({
-        error: 'FILEBASE_KEY or FILEBASE_SECRET not found in Netlify environment variables.'
+        error: 'Filebase credentials (FILEBASE_KEY / FILEBASE_SECRET) missing in Netlify environment variables.'
       })
     };
   }
@@ -40,16 +40,29 @@ export const handler = async (event) => {
 
     const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // 1. Fetch all objects from Filebase bucket
+    // 1. Fetch all objects from Filebase bucket (Fast single query)
     const listCmd = new ListObjectsV2Command({ Bucket: bucket, MaxKeys: 1000 });
     const listRes = await s3.send(listCmd);
     const objects = listRes.Contents || [];
 
     console.log(`Found ${objects.length} objects in Filebase bucket ${bucket}`);
 
-    // 2. Query HeadObject for each to retrieve IPFS CID
+    if (objects.length === 0) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          message: 'No files found in Filebase bucket.',
+          totalFilebaseObjects: 0,
+          supabaseSongsUpdated: 0
+        })
+      };
+    }
+
+    // 2. Query HeadObject in parallel chunks of 25 for maximum speed
     const results = [];
-    const batchSize = 10;
+    const batchSize = 25;
     for (let i = 0; i < objects.length; i += batchSize) {
       const chunk = objects.slice(i, i + batchSize);
       await Promise.all(
@@ -72,23 +85,39 @@ export const handler = async (event) => {
     }
 
     // 3. Fetch all songs currently in Supabase cloud_songs
-    const { data: dbSongs, error: dbError } = await sb
-      .from('cloud_songs')
-      .select('id, title, url');
+    let dbSongs = [];
+    try {
+      const { data, error: dbError } = await sb
+        .from('cloud_songs')
+        .select('id, title, url');
 
-    if (dbError) throw dbError;
+      if (dbError) throw dbError;
+      dbSongs = data || [];
+    } catch (sbErr) {
+      const errMsg = sbErr?.message || String(sbErr);
+      if (errMsg.includes('ENOTFOUND') || errMsg.includes('fetch failed') || errMsg.includes('getaddrinfo')) {
+        return {
+          statusCode: 503,
+          headers,
+          body: JSON.stringify({
+            error: 'Supabase project is paused due to inactivity. Please go to https://supabase.com/dashboard and click "Restore project" to resume your database.'
+          })
+        };
+      }
+      throw sbErr;
+    }
 
     let updatedCount = 0;
     let insertedCount = 0;
     const updates = [];
 
-    for (const item of results) {
+    // 4. Update Supabase in parallel batches of 15 for fast completion
+    const updateTasks = results.map((item) => async () => {
       const keyName = item.key.split('/').pop();
       const decodedKey = decodeURIComponent(keyName).toLowerCase();
       const rawTitleFromKey = decodedKey.replace(/\.(mp3|wav|m4a|aac|flac|ogg)$/i, '').trim();
 
-      // Match against Supabase records
-      const match = dbSongs?.find((s) => {
+      const match = dbSongs.find((s) => {
         const dbUrlFile = decodeURIComponent(s.url?.split('/').pop() || '').toLowerCase();
         const dbTitle = (s.title || '').trim().toLowerCase();
         return (
@@ -128,6 +157,11 @@ export const handler = async (event) => {
           updates.push({ id: newSongId, title: cleanTitle, ipfsUrl: item.ipfsUrl, isNew: true });
         }
       }
+    });
+
+    const dbBatchSize = 15;
+    for (let i = 0; i < updateTasks.length; i += dbBatchSize) {
+      await Promise.all(updateTasks.slice(i, i + dbBatchSize).map(fn => fn()));
     }
 
     return {
@@ -145,10 +179,16 @@ export const handler = async (event) => {
     };
   } catch (err) {
     console.error('Error in sync-filebase-ipfs:', err);
+    const msg = err.message || 'Internal server error';
+    const isDnsError = msg.includes('ENOTFOUND') || msg.includes('fetch failed') || msg.includes('getaddrinfo');
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: err.message || 'Internal server error' })
+      body: JSON.stringify({
+        error: isDnsError
+          ? 'Supabase database is paused. Log into https://supabase.com/dashboard and click "Restore project".'
+          : msg
+      })
     };
   }
 };

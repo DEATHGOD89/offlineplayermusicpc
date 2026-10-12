@@ -155,8 +155,18 @@ export async function syncFilebaseVault() {
       method: 'POST'
     });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `Sync returned status ${res.status}`);
+      let errorMsg = `Server error (Status ${res.status})`;
+      try {
+        const errData = await res.json();
+        if (errData && errData.error) errorMsg = errData.error;
+      } catch {
+        if (res.status === 504) {
+          errorMsg = 'Sync timed out. Please try again.';
+        } else if (res.status === 503 || res.status === 500) {
+          errorMsg = 'Supabase database is paused. Restore it in Supabase dashboard.';
+        }
+      }
+      throw new Error(errorMsg);
     }
     return await res.json();
   } catch (err) {
