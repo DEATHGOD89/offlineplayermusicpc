@@ -124,12 +124,27 @@ export async function getCloudSongs() {
 }
 
 /**
+ * Helper to resolve Netlify function URLs across local dev, Electron, and production.
+ */
+function getNetlifyFunctionUrl(path) {
+  if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.protocol === 'file:';
+    if (isLocal) {
+      return `https://freemusicplay.netlify.app${path}`;
+    }
+  }
+  return path;
+}
+
+/**
  * Uploads a file to Filebase S3 bucket via Netlify serverless function presigned URL.
  * Returns public URL if successful, or null if Filebase is unavailable.
  */
 async function uploadToFilebase(file, fileName, folder = 'songs') {
   try {
-    const res = await fetch('/.netlify/functions/get-upload-url', {
+    const res = await fetch(getNetlifyFunctionUrl('/.netlify/functions/get-upload-url'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -163,7 +178,7 @@ async function uploadToFilebase(file, fileName, folder = 'songs') {
     // Retrieve IPFS CID (Filebase 100% free permanent public gateway)
     try {
       if (key) {
-        const cidRes = await fetch('/.netlify/functions/get-ipfs-cid', {
+        const cidRes = await fetch(getNetlifyFunctionUrl('/.netlify/functions/get-ipfs-cid'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key })
@@ -191,7 +206,7 @@ async function uploadToFilebase(file, fileName, folder = 'songs') {
  */
 export async function syncFilebaseVault() {
   try {
-    const res = await fetch('/.netlify/functions/sync-filebase-ipfs', {
+    const res = await fetch(getNetlifyFunctionUrl('/.netlify/functions/sync-filebase-ipfs'), {
       method: 'POST'
     });
     if (!res.ok) {
