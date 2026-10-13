@@ -120,11 +120,16 @@ export const handler = async (event) => {
       const match = dbSongs.find((s) => {
         const dbUrlFile = decodeURIComponent(s.url?.split('/').pop() || '').toLowerCase();
         const dbTitle = (s.title || '').trim().toLowerCase();
-        return (
-          dbUrlFile === decodedKey ||
-          dbUrlFile === keyName.toLowerCase() ||
-          dbTitle === rawTitleFromKey
-        );
+        const sCid = s.url?.match(/\/ipfs\/([a-zA-Z0-9]+)/)?.[1];
+        if (sCid && item.cid && sCid === item.cid) return true;
+        if (s.url && item.ipfsUrl && s.url === item.ipfsUrl) return true;
+        if (dbUrlFile === decodedKey || dbUrlFile === keyName.toLowerCase() || dbTitle === rawTitleFromKey) return true;
+
+        const normDb = dbTitle.replace(/[^a-z0-9]/g, '');
+        const normKey = rawTitleFromKey.replace(/^spotidownloader\.com/i, '').replace(/[^a-z0-9]/g, '');
+        if (normDb.length > 3 && normKey.length > 3 && (normDb.includes(normKey) || normKey.includes(normDb))) return true;
+
+        return false;
       });
 
       if (match) {
@@ -138,6 +143,12 @@ export const handler = async (event) => {
           updates.push({ id: match.id, title: match.title, ipfsUrl: item.ipfsUrl });
         }
       } else {
+        // Skip artifact filenames or re-downloads to prevent ghost coverless duplicates
+        if (rawTitleFromKey.includes('spotidownloader') || rawTitleFromKey.includes('_audio')) {
+          console.log(`Skipping duplicate download artifact: ${keyName}`);
+          return;
+        }
+
         const newSongId = 'cloud-' + Math.random().toString(36).substring(2, 11);
         const rawClean = keyName.replace(/\.(mp3|wav|m4a|aac|flac|ogg)$/i, '').trim();
         let parsedArtist = 'Unknown Artist';
@@ -162,7 +173,7 @@ export const handler = async (event) => {
 
         if (!insertErr) {
           insertedCount++;
-          updates.push({ id: newSongId, title: cleanTitle, ipfsUrl: item.ipfsUrl, isNew: true });
+          updates.push({ id: newSongId, title: parsedTitle, ipfsUrl: item.ipfsUrl, isNew: true });
         }
       }
     });

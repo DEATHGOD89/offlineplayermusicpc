@@ -384,7 +384,7 @@ export async function deleteCloudSong(songId) {
       .eq('id', songId);
 
     if (dbError) throw dbError;
-
+ 
     // 3. Clean up exact files from storage bucket
     const filesToRemove = [];
     if (songRecord?.url) {
@@ -402,6 +402,18 @@ export async function deleteCloudSong(songId) {
     }
 
     await sb.storage.from('spoty-media').remove(filesToRemove);
+
+    // 4. Clean up localStorage cache
+    try {
+      const cached = localStorage.getItem('spoty_cached_cloud_songs');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          const updated = parsed.filter(s => s.id !== songId);
+          localStorage.setItem('spoty_cached_cloud_songs', JSON.stringify(updated));
+        }
+      }
+    } catch {}
   } catch (e) {
     console.error("Error deleting Supabase cloud song:", e);
     throw e;

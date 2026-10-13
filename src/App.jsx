@@ -768,10 +768,19 @@ export default function App() {
       return localSong;
     });
 
-    const localIds = new Set(songs.map(s => s.id));
-    const uniqueCloudSongs = cloudSongs.filter(cs => !localIds.has(cs.id) && !matchedCloudIds.has(cs.id));
+    const isArtifactDuplicate = (s) => {
+      const t = (s.title || '').toLowerCase();
+      if (t.startsWith('spotidownloader.com') || t.includes('_audio')) return true;
+      if (s.artist === 'Vault Artist' && (!s.coverUrl && !s.cover_url)) return true;
+      return false;
+    };
 
-    return [...mergedLocalSongs, ...uniqueCloudSongs];
+    const localIds = new Set(songs.map(s => s.id));
+    const uniqueCloudSongs = cloudSongs
+      .filter(cs => !localIds.has(cs.id) && !matchedCloudIds.has(cs.id))
+      .filter(cs => !isArtifactDuplicate(cs));
+
+    return [...mergedLocalSongs.filter(s => !isArtifactDuplicate(s)), ...uniqueCloudSongs];
   }, [songs, cloudSongs]);
 
   const mergedCurrentTrack = useMemo(() => {
@@ -1215,6 +1224,8 @@ export default function App() {
     try {
       await deleteCloudSong(songId);
       setCloudSongs(prev => prev.filter(s => s.id !== songId));
+      setSongs(prev => prev.filter(s => s.id !== songId));
+      deleteSong(songId).catch(() => {});
       triggerNotification("Cloud track deleted! 🗑️");
     } catch (e) {
       console.error("Failed to delete cloud song:", e);
