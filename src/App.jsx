@@ -61,7 +61,8 @@ import {
   likeCloudSong,
   deleteCloudSong,
   isSupabaseConfigured,
-  syncFilebaseVault
+  syncFilebaseVault,
+  cleanupGhostTracks
 } from './services/supabase';
 
 import './App.css';
@@ -1173,6 +1174,7 @@ export default function App() {
     triggerNotification("Connecting to Filebase & indexing IPFS CIDs...", "info");
     try {
       const res = await syncFilebaseVault();
+      await cleanupGhostTracks();
       triggerNotification(`Vault Synced! Updated ${res.supabaseSongsUpdated ?? res.totalFilebaseObjects} tracks with IPFS links. 🎉`);
       await loadCloudData();
     } catch (err) {
@@ -2541,7 +2543,9 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {cloudSongs.map((song) => {
+                        {cloudSongs
+                          .filter(s => !(s.artist === 'Vault Artist' && !s.coverUrl) && !s.title.toLowerCase().startsWith('spotidownloader.com') && !s.title.includes('_audio'))
+                          .map((song) => {
                           const isCurrent = currentTrack && currentTrack.id === song.id;
                           const grad = generateCoverGradient(song.title);
                           return (

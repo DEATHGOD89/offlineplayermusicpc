@@ -65,7 +65,30 @@ export async function getCloudSongs() {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    const formatted = data.map(item => ({
+
+    // Detect and auto-purge any ghost duplicate sync artifacts from database
+    const ghostItems = data.filter(item => {
+      const t = (item.title || '').toLowerCase();
+      if (item.artist === 'Vault Artist' && !item.cover_url) return true;
+      if (t.startsWith('spotidownloader.com') || t.includes('_audio')) return true;
+      return false;
+    });
+
+    if (ghostItems.length > 0) {
+      const ghostIds = ghostItems.map(g => g.id);
+      sb.from('cloud_songs').delete().in('id', ghostIds).then(() => {
+        console.log(`Auto-purged ${ghostIds.length} ghost sync tracks.`);
+      }).catch(() => {});
+    }
+
+    const cleanData = data.filter(item => {
+      const t = (item.title || '').toLowerCase();
+      if (item.artist === 'Vault Artist' && !item.cover_url) return false;
+      if (t.startsWith('spotidownloader.com') || t.includes('_audio')) return false;
+      return true;
+    });
+
+    const formatted = cleanData.map(item => ({
       id: item.id,
       title: item.title,
       artist: item.artist,
@@ -191,6 +214,32 @@ export async function syncFilebaseVault() {
     throw err;
   }
 }
+
+export async function cleanupGhostTracks() {
+  const sb = initSupabase();
+  if (!sb) return;
+  try {
+    const { data } = await sb
+      .from('cloud_songs')
+      .select('id, title, artist, cover_url');
+    if (!data) return;
+    const ghostIds = data
+      .filter(item => {
+        const t = (item.title || '').toLowerCase();
+        return (item.artist === 'Vault Artist' && !item.cover_url) ||
+               t.startsWith('spotidownloader.com') ||
+               t.includes('_audio');
+      })
+      .map(item => item.id);
+    if (ghostIds.length > 0) {
+      await sb.from('cloud_songs').delete().in('id', ghostIds);
+      console.log(`cleanupGhostTracks: auto-deleted ${ghostIds.length} ghost rows.`);
+    }
+  } catch (e) {
+    console.warn("cleanupGhostTracks error:", e);
+  }
+}
+
 
 /**
  * Uploads a track and artwork to Filebase (or Supabase Storage fallback) & inserts record in table 'cloud_songs'.
