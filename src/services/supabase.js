@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import jsmediatags from 'jsmediatags/dist/jsmediatags.min.js';
 import songDurations from './songDurations.json';
 
 /**
@@ -66,25 +67,29 @@ export async function getCloudSongs() {
 
     if (error) throw error;
 
-    // Detect and auto-purge any ghost duplicate sync artifacts from database
-    const ghostItems = data.filter(item => {
-      const t = (item.title || '').toLowerCase();
-      if (item.artist === 'Vault Artist' && !item.cover_url) return true;
-      if (t.startsWith('spotidownloader.com') || t.includes('_audio')) return true;
-      return false;
+    // 1. Detect only true duplicate rows (sharing the same audio CID with an already-covered track)
+    const tracksWithCoverCid = new Set(
+      data
+        .filter(item => item.cover_url && item.url)
+        .map(item => item.url.match(/\/ipfs\/([a-zA-Z0-9]+)/)?.[1] || item.url)
+    );
+
+    const duplicateGhostItems = data.filter(item => {
+      if (item.cover_url) return false;
+      const cid = item.url?.match(/\/ipfs\/([a-zA-Z0-9]+)/)?.[1] || item.url;
+      return tracksWithCoverCid.has(cid);
     });
 
-    if (ghostItems.length > 0) {
-      const ghostIds = ghostItems.map(g => g.id);
+    if (duplicateGhostItems.length > 0) {
+      const ghostIds = duplicateGhostItems.map(g => g.id);
       sb.from('cloud_songs').delete().in('id', ghostIds).then(() => {
-        console.log(`Auto-purged ${ghostIds.length} ghost sync tracks.`);
+        console.log(`Auto-purged ${ghostIds.length} duplicate sync tracks.`);
       }).catch(() => {});
     }
 
     const cleanData = data.filter(item => {
-      const t = (item.title || '').toLowerCase();
-      if (item.artist === 'Vault Artist' && !item.cover_url) return false;
-      if (t.startsWith('spotidownloader.com') || t.includes('_audio')) return false;
+      const cid = item.url?.match(/\/ipfs\/([a-zA-Z0-9]+)/)?.[1] || item.url;
+      if (!item.cover_url && tracksWithCoverCid.has(cid)) return false;
       return true;
     });
 
@@ -102,6 +107,14 @@ export async function getCloudSongs() {
       addedAt: new Date(item.created_at).getTime(),
       isCloud: true
     }));
+
+    // 2. Automatically enrich any newly added track missing its cover artwork
+    const needsEnrichment = formatted.filter(s => !s.coverUrl && s.url);
+    if (needsEnrichment.length > 0) {
+      setTimeout(() => {
+        needsEnrichment.forEach(s => enrichSongMetadata(s));
+      }, 1000);
+    }
 
     try {
       localStorage.setItem('spoty_cached_cloud_songs', JSON.stringify(formatted));
@@ -483,3 +496,72 @@ export async function deleteCloudSong(songId) {
     throw e;
   }
 }
+
+/**
+ * Reads embedded ID3 tags & artwork directly from an audio stream and saves them to Supabase.
+ */
+export async function enrichSongMetadata(song) {
+  if (!song || !song.url || song.coverUrl) return song;
+  try {
+    const res = await fetch(song.url, { headers: { Range: 'bytes=0-400000' } });
+    if (!res.ok && res.status !== 206) return song;
+    const blob = await res.blob();
+
+    return await new Promise((resolve) => {
+      jsmediatags.read(blob, {
+        onSuccess: async (tag) => {
+          try {
+            let updatedCoverUrl = null;
+            const updatedArtist = tag.tags?.artist;
+            const updatedTitle = tag.tags?.title;
+            const updatedAlbum = tag.tags?.album;
+
+            if (tag.tags?.picture) {
+              const { data, format } = tag.tags.picture;
+              const picBlob = new Blob([new Uint8Array(data)], { type: format || 'image/jpeg' });
+              const coverPath = `covers/${song.id}_cover.jpg`;
+              const sb = initSupabase();
+              if (sb) {
+                const { error: upErr } = await sb.storage
+                  .from('spoty-media')
+                  .upload(coverPath, picBlob, { contentType: format || 'image/jpeg', upsert: true });
+                if (!upErr) {
+                  const { data: pubData } = sb.storage.from('spoty-media').getPublicUrl(coverPath);
+                  updatedCoverUrl = pubData.publicUrl;
+                }
+              }
+            }
+
+            const patchBody = {};
+            if (updatedCoverUrl) patchBody.cover_url = updatedCoverUrl;
+            if (updatedTitle && updatedTitle !== song.title) patchBody.title = updatedTitle;
+            if (updatedArtist && updatedArtist !== song.artist && updatedArtist !== 'Unknown Artist') patchBody.artist = updatedArtist;
+            if (updatedAlbum && updatedAlbum !== song.album) patchBody.album = updatedAlbum;
+
+            if (Object.keys(patchBody).length > 0) {
+              const sb = initSupabase();
+              if (sb) {
+                await sb.from('cloud_songs').update(patchBody).eq('id', song.id);
+              }
+              resolve({
+                ...song,
+                title: patchBody.title || song.title,
+                artist: patchBody.artist || song.artist,
+                album: patchBody.album || song.album,
+                coverUrl: patchBody.cover_url || song.coverUrl
+              });
+              return;
+            }
+          } catch (e) {
+            console.warn("Auto-enrich patch error:", e);
+          }
+          resolve(song);
+        },
+        onError: () => resolve(song)
+      });
+    });
+  } catch (err) {
+    return song;
+  }
+}
+

@@ -143,20 +143,28 @@ export const handler = async (event) => {
           updates.push({ id: match.id, title: match.title, ipfsUrl: item.ipfsUrl });
         }
       } else {
-        // Skip artifact filenames or re-downloads to prevent ghost coverless duplicates
-        if (rawTitleFromKey.includes('spotidownloader') || rawTitleFromKey.includes('_audio')) {
+        // Skip only internal duplicate temporary audio dumps
+        if (rawTitleFromKey.includes('_audio')) {
           console.log(`Skipping duplicate download artifact: ${keyName}`);
           return;
         }
 
         const newSongId = 'cloud-' + Math.random().toString(36).substring(2, 11);
-        const rawClean = keyName.replace(/\.(mp3|wav|m4a|aac|flac|ogg)$/i, '').trim();
+        let rawClean = keyName
+          .replace(/^spotidownloader\.com\s*-\s*/i, '')
+          .replace(/\.(mp3|wav|m4a|aac|flac|ogg)$/i, '')
+          .replace(/_/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
         let parsedArtist = 'Unknown Artist';
         let parsedTitle = rawClean;
         if (rawClean.includes(' - ')) {
           const parts = rawClean.split(' - ');
-          parsedArtist = parts[0].trim();
-          parsedTitle = parts.slice(1).join(' - ').trim();
+          if (parts.length >= 2) {
+            parsedArtist = parts[0].trim();
+            parsedTitle = parts.slice(1).join(' - ').trim();
+          }
         }
 
         const { error: insertErr } = await sb.from('cloud_songs').insert([{
