@@ -1843,10 +1843,15 @@ export default function App() {
 
   // Filters by search query, mood badges, and active filters
   const filteredSongs = useMemo(() => {
+    const rawQuery = searchQuery.trim().toLowerCase();
+    const queryTokens = rawQuery ? rawQuery.split(/\s+/).filter(Boolean) : [];
+
     return allSongs.filter((s) => {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = s.title.toLowerCase().includes(query) || s.artist.toLowerCase().includes(query) || (s.genre && s.genre.toLowerCase().includes(query));
-      if (!matchesSearch) return false;
+      if (queryTokens.length > 0) {
+        const textCorpus = `${s.title || ''} ${s.artist || ''} ${s.album || ''} ${s.genre || ''}`.toLowerCase();
+        const matchesAllTokens = queryTokens.every(token => textCorpus.includes(token));
+        if (!matchesAllTokens) return false;
+      }
 
       // Mood filtering from AMPLIFY Mood Selector
       if (selectedMood !== 'All') {
@@ -2165,10 +2170,42 @@ export default function App() {
             <input 
               id="amplify-global-search"
               type="text" 
-              placeholder="Search by title, artist, genre..." 
+              placeholder="Search tracks, artists, albums..." 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchQuery(val);
+                if (val.trim() && (activeView === 'settings' || activeView === 'equalizer')) {
+                  setActiveView('home');
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchQuery('');
+                  e.target.blur();
+                }
+              }}
             />
+            {searchQuery && (
+              <button 
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%'
+                }}
+                title="Clear search (Esc)"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           <div className="header-action-row">
@@ -2255,11 +2292,29 @@ export default function App() {
             </div>
 
             <div className="folder-songs-list">
-              {songs.filter(s => s.album === selectedCategory).map((song, idx) => (
+              {(() => {
+                const rawQuery = searchQuery.trim().toLowerCase();
+                const folderSongs = songs
+                  .filter(s => s.album === selectedCategory)
+                  .filter(s => {
+                    if (!rawQuery) return true;
+                    return (s.title && s.title.toLowerCase().includes(rawQuery)) ||
+                           (s.artist && s.artist.toLowerCase().includes(rawQuery));
+                  });
+
+                if (folderSongs.length === 0) {
+                  return (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      {rawQuery ? `No tracks matching "${searchQuery}" in this folder.` : 'No songs in this folder.'}
+                    </div>
+                  );
+                }
+
+                return folderSongs.map((song, idx) => (
                 <div 
                   key={song.id} 
                   className={`folder-song-row ${currentTrack && currentTrack.id === song.id ? 'active' : ''}`}
-                  onClick={() => handlePlaySong(song, songs.filter(s => s.album === selectedCategory))}
+                  onClick={() => handlePlaySong(song, folderSongs)}
                 >
                   <span className="song-idx">{idx + 1}</span>
                   <div className="song-row-info">
@@ -2286,7 +2341,8 @@ export default function App() {
                     <X size={12} />
                   </button>
                 </div>
-              ))}
+              ));
+              })()}
             </div>
           </section>
         ) : activeView === 'equalizer' ? (
@@ -2549,9 +2605,35 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {cloudSongs
-                          .filter(s => s && s.title && s.url && !(s.artist === 'Vault Artist' && !s.coverUrl) && !s.title.toLowerCase().startsWith('spotidownloader.com') && !s.title.includes('_audio'))
-                          .map((song) => {
+                        {(() => {
+                          const rawQuery = searchQuery.trim().toLowerCase();
+                          const queryTokens = rawQuery ? rawQuery.split(/\s+/).filter(Boolean) : [];
+                          const visibleCloudSongs = cloudSongs
+                            .filter(s => s && s.title && s.url && !(s.artist === 'Vault Artist' && !s.coverUrl) && !s.title.toLowerCase().startsWith('spotidownloader.com') && !s.title.includes('_audio'))
+                            .filter(s => {
+                              if (queryTokens.length === 0) return true;
+                              const textCorpus = `${s.title || ''} ${s.artist || ''} ${s.album || ''} ${s.genre || ''}`.toLowerCase();
+                              return queryTokens.every(token => textCorpus.includes(token));
+                            });
+
+                          if (visibleCloudSongs.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan="5" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                  {rawQuery ? `No cloud tracks found matching "${searchQuery}"` : 'No cloud tracks available'}
+                                  {rawQuery && (
+                                    <div style={{ marginTop: '10px' }}>
+                                      <button className="btn-secondary" onClick={() => setSearchQuery('')} style={{ fontSize: '0.72rem', padding: '4px 12px' }}>
+                                        Clear Search
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return visibleCloudSongs.map((song) => {
                           const isCurrent = currentTrack && currentTrack.id === song.id;
                           const grad = generateCoverGradient(song.title);
                           return (
@@ -2575,7 +2657,7 @@ export default function App() {
                                     </div>
                                   )}
                                   <button 
-                                    onClick={() => handlePlaySong(song, cloudSongs)}
+                                    onClick={() => handlePlaySong(song, visibleCloudSongs)}
                                     style={{ 
                                       position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
                                       background: 'rgba(0,0,0,0.6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', 
@@ -2619,7 +2701,8 @@ export default function App() {
                               </td>
                             </tr>
                           );
-                        })}
+                        });
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -2646,7 +2729,22 @@ export default function App() {
                 </button>
               </div>
               <div className="folders-collage-grid">
-                {categories.map((cat) => (
+                {(() => {
+                  const rawQuery = searchQuery.trim().toLowerCase();
+                  const filteredCats = categories.filter(cat => {
+                    if (!rawQuery) return true;
+                    return cat.name.toLowerCase().includes(rawQuery);
+                  });
+
+                  if (filteredCats.length === 0) {
+                    return (
+                      <div style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)', gridColumn: '1 / -1' }}>
+                        No folders matching "{searchQuery}"
+                      </div>
+                    );
+                  }
+
+                  return filteredCats.map((cat) => (
                   <div 
                     key={cat.name} 
                     className="folder-collage-card"
@@ -2658,7 +2756,8 @@ export default function App() {
                       <p>{cat.count} offline tracks</p>
                     </div>
                   </div>
-                ))}
+                ));
+                })()}
               </div>
             </div>
           </section>
@@ -3437,7 +3536,16 @@ export default function App() {
                 </div>
               ) : (
                 <div className="bento-panel" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dark)' }}>
-                  No liked songs in your library yet. Click the heart icon on any song on the Home page to add them here!
+                  {searchQuery.trim() ? (
+                    <div>
+                      <p style={{ color: 'var(--text-main)', marginBottom: '8px' }}>No liked songs matching "{searchQuery}"</p>
+                      <button className="btn-secondary" onClick={() => setSearchQuery('')} style={{ fontSize: '0.72rem', padding: '4px 12px' }}>
+                        Clear Search
+                      </button>
+                    </div>
+                  ) : (
+                    "No liked songs in your library yet. Click the heart icon on any song on the Home page to add them here!"
+                  )}
                 </div>
               )}
             </div>
@@ -3716,11 +3824,28 @@ export default function App() {
               ) : (
                 <div className="amplify-empty-state">
                   <Music size={38} className="empty-icon" />
-                  <h3>No Tracks in this view</h3>
-                  <p>Click "Add Tracks +" above or import a music folder to fill your library.</p>
-                  <button type="button" className="amplify-add-tracks-btn" onClick={() => setIsUploadOpen(true)} style={{ marginTop: '12px' }}>
-                    <span>Import Tracks Now</span>
-                  </button>
+                  {searchQuery.trim() ? (
+                    <>
+                      <h3>No results for "{searchQuery}"</h3>
+                      <p>Check the spelling or try searching for another artist, song, or album.</p>
+                      <button 
+                        type="button" 
+                        className="btn-secondary" 
+                        onClick={() => setSearchQuery('')} 
+                        style={{ marginTop: '12px', padding: '6px 14px', fontSize: '0.75rem' }}
+                      >
+                        Clear Search
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <h3>No Tracks in this view</h3>
+                      <p>Click "Add Tracks +" above or import a music folder to fill your library.</p>
+                      <button type="button" className="amplify-add-tracks-btn" onClick={() => setIsUploadOpen(true)} style={{ marginTop: '12px' }}>
+                        <span>Import Tracks Now</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
