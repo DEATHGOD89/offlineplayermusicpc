@@ -770,6 +770,7 @@ export default function App() {
     });
 
     const isArtifactDuplicate = (s) => {
+      if (!s || !s.title || !s.url || !s.url.trim()) return true;
       const t = (s.title || '').toLowerCase();
       if (t.startsWith('spotidownloader.com') || t.includes('_audio')) return true;
       if (s.artist === 'Vault Artist' && (!s.coverUrl && !s.cover_url)) return true;
@@ -1372,6 +1373,11 @@ export default function App() {
     const audioDur = Math.round(audioRef.current.duration);
     setDuration(audioDur);
     if (mergedCurrentTrack && audioDur > 0) {
+      try {
+        const dyn = JSON.parse(localStorage.getItem('spoty_dynamic_durations') || '{}');
+        dyn[mergedCurrentTrack.id] = audioDur;
+        localStorage.setItem('spoty_dynamic_durations', JSON.stringify(dyn));
+      } catch {}
       if (!mergedCurrentTrack.duration || mergedCurrentTrack.duration === 0) {
         setCloudSongs(prev => prev.map(s => s.id === mergedCurrentTrack.id ? { ...s, duration: audioDur } : s));
         setSongs(prev => prev.map(s => s.id === mergedCurrentTrack.id ? { ...s, duration: audioDur } : s));
@@ -2544,7 +2550,7 @@ export default function App() {
                       </thead>
                       <tbody>
                         {cloudSongs
-                          .filter(s => !(s.artist === 'Vault Artist' && !s.coverUrl) && !s.title.toLowerCase().startsWith('spotidownloader.com') && !s.title.includes('_audio'))
+                          .filter(s => s && s.title && s.url && !(s.artist === 'Vault Artist' && !s.coverUrl) && !s.title.toLowerCase().startsWith('spotidownloader.com') && !s.title.includes('_audio'))
                           .map((song) => {
                           const isCurrent = currentTrack && currentTrack.id === song.id;
                           const grad = generateCoverGradient(song.title);

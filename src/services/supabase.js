@@ -93,13 +93,21 @@ export async function getCloudSongs() {
       return true;
     });
 
+    const dynamicDurations = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('spoty_dynamic_durations') || '{}');
+      } catch {
+        return {};
+      }
+    })();
+
     const formatted = cleanData.map(item => ({
       id: item.id,
       title: item.title,
       artist: item.artist,
       album: item.album,
       genre: item.genre,
-      duration: item.duration || songDurations[item.id] || 0,
+      duration: item.duration || songDurations[item.id] || dynamicDurations[item.id] || 0,
       url: item.url,
       coverUrl: item.cover_url,
       likes: item.likes || 0,
@@ -480,7 +488,17 @@ export async function deleteCloudSong(songId) {
 
     await sb.storage.from('spoty-media').remove(filesToRemove);
 
-    // 4. Clean up localStorage cache
+    // 4. Clean up file from Filebase S3 bucket so sync never resurrects it
+    if (songRecord?.url) {
+      const cid = songRecord.url.match(/\/ipfs\/([a-zA-Z0-9]+)/)?.[1];
+      fetch(getNetlifyFunctionUrl('/.netlify/functions/delete-filebase-file'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid, url: songRecord.url })
+      }).catch(err => console.warn('Could not delete from Filebase:', err));
+    }
+
+    // 5. Clean up localStorage caches
     try {
       const cached = localStorage.getItem('spoty_cached_cloud_songs');
       if (cached) {
@@ -489,6 +507,11 @@ export async function deleteCloudSong(songId) {
           const updated = parsed.filter(s => s.id !== songId);
           localStorage.setItem('spoty_cached_cloud_songs', JSON.stringify(updated));
         }
+      }
+      const dyn = JSON.parse(localStorage.getItem('spoty_dynamic_durations') || '{}');
+      if (dyn[songId]) {
+        delete dyn[songId];
+        localStorage.setItem('spoty_dynamic_durations', JSON.stringify(dyn));
       }
     } catch {}
   } catch (e) {
