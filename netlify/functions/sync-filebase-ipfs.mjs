@@ -159,7 +159,11 @@ export const handler = async (event) => {
 
         let parsedArtist = 'Unknown Artist';
         let parsedTitle = rawClean;
-        if (rawClean.includes(' - ')) {
+        const outerDashMatch = rawClean.match(/^([^(]+?)\s+-\s+(.+)$/);
+        if (outerDashMatch) {
+          parsedArtist = outerDashMatch[1].trim();
+          parsedTitle = outerDashMatch[2].trim();
+        } else if (rawClean.includes(' - ') && !rawClean.includes('(')) {
           const parts = rawClean.split(' - ');
           if (parts.length >= 2) {
             parsedArtist = parts[0].trim();

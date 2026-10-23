@@ -566,13 +566,35 @@ export async function enrichSongMetadata(song) {
               if (sb) {
                 await sb.from('cloud_songs').update(patchBody).eq('id', song.id);
               }
-              resolve({
+              const updatedSong = {
                 ...song,
                 title: patchBody.title || song.title,
                 artist: patchBody.artist || song.artist,
                 album: patchBody.album || song.album,
                 coverUrl: patchBody.cover_url || song.coverUrl
-              });
+              };
+
+              // 1. Update localStorage cache so it stays fresh
+              try {
+                const cached = localStorage.getItem('spoty_cached_cloud_songs');
+                if (cached) {
+                  const parsed = JSON.parse(cached);
+                  if (Array.isArray(parsed)) {
+                    const idx = parsed.findIndex(s => s.id === song.id);
+                    if (idx !== -1) {
+                      parsed[idx] = { ...parsed[idx], ...updatedSong };
+                      localStorage.setItem('spoty_cached_cloud_songs', JSON.stringify(parsed));
+                    }
+                  }
+                }
+              } catch {}
+
+              // 2. Dispatch real-time event so UI updates immediately without reload
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('spoty_song_enriched', { detail: updatedSong }));
+              }
+
+              resolve(updatedSong);
               return;
             }
           } catch (e) {

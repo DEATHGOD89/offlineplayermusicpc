@@ -743,26 +743,32 @@ export default function App() {
   const allSongs = useMemo(() => {
     const cloudMap = new Map(cloudSongs.map(cs => [cs.id, cs]));
     const norm = (t, a) => `${(t || '').trim().toLowerCase()}:::${(a || '').trim().toLowerCase()}`;
+    const cleanAlpha = (t) => (t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const cloudByMeta = new Map(cloudSongs.map(cs => [norm(cs.title, cs.artist), cs]));
     const cloudByUrl = new Map(cloudSongs.filter(cs => cs.url).map(cs => [cs.url, cs]));
+    const cloudByTitle = new Map(cloudSongs.map(cs => [cleanAlpha(cs.title), cs]));
     
-    // Process local songs: if they exist in cloud, merge cloud-authoritative fields (like coverUrl, url, likes, duration)
+    // Process local songs: if they exist in cloud, merge cloud-authoritative fields (like coverUrl, url, likes, duration, artist, title)
     const matchedCloudIds = new Set();
     const mergedLocalSongs = songs.map(localSong => {
       const metaKey = norm(localSong.title, localSong.artist);
+      const titleKey = cleanAlpha(localSong.title);
       const cloudSong = cloudMap.get(localSong.id) || 
                         (localSong.url ? cloudByUrl.get(localSong.url) : null) || 
-                        cloudByMeta.get(metaKey);
+                        cloudByMeta.get(metaKey) ||
+                        cloudByTitle.get(titleKey);
 
       if (cloudSong) {
         matchedCloudIds.add(cloudSong.id);
         return {
           ...localSong,
-          // Cloud song takes precedence for coverUrl, url, likes since they are uploaded/stored in Supabase
+          title: cloudSong.title || localSong.title,
+          artist: (cloudSong.artist && cloudSong.artist !== 'Unknown Artist') ? cloudSong.artist : localSong.artist,
+          album: cloudSong.album || localSong.album,
           coverUrl: cloudSong.coverUrl || localSong.coverUrl,
           url: cloudSong.url || localSong.url,
           likes: cloudSong.likes !== undefined ? cloudSong.likes : localSong.likes,
-          duration: localSong.duration || cloudSong.duration || 0,
+          duration: cloudSong.duration || localSong.duration || 0,
           isCloud: true
         };
       }
@@ -1169,6 +1175,19 @@ export default function App() {
       setIsLoadingCloud(false);
     }
   };
+
+  
+  // Real-time listener: instantly update UI when background enricher extracts artwork and ID3 tags
+  useEffect(() => {
+    const handleSongEnriched = (e) => {
+      const enriched = e.detail;
+      if (!enriched || !enriched.id) return;
+      setCloudSongs(prev => prev.map(s => s.id === enriched.id ? { ...s, ...enriched } : s));
+      setSongs(prev => prev.map(s => s.id === enriched.id ? { ...s, ...enriched } : s));
+    };
+    window.addEventListener('spoty_song_enriched', handleSongEnriched);
+    return () => window.removeEventListener('spoty_song_enriched', handleSongEnriched);
+  }, []);
 
   const handleSyncVault = async () => {
     setIsSyncingVault(true);
