@@ -1619,16 +1619,16 @@ export default function App() {
   };
 
   // --- PLAYLIST ACTIONS ---
-  const handleCreatePlaylist = async (name) => {
+  const handleCreatePlaylist = async (name, initialSongIds = []) => {
     const pl = {
       id: 'pl-' + Date.now(),
       name: name,
-      songIds: [],
+      songIds: Array.isArray(initialSongIds) ? initialSongIds : [],
       addedAt: Date.now()
     };
     await savePlaylist(pl);
     await loadLocalData();
-    triggerNotification(`Playlist "${name}" created!`);
+    triggerNotification(`Playlist "${name}" created on your device! 🎵`);
   };
 
   const handleAddSongToPlaylist = async (songId, plId) => {
@@ -2865,7 +2865,7 @@ export default function App() {
               ) : (
                 <div className="folders-collage-grid">
                   {playlists.map((pl) => {
-                    const plSongs = (pl.songIds || []).map(id => songs.find(s => s.id === id)).filter(Boolean);
+                    const plSongs = (pl.songIds || []).map(id => allSongs.find(s => s.id === id)).filter(Boolean);
                     const grad = generateCoverGradient(pl.name);
                     
                     return (
@@ -3481,6 +3481,36 @@ export default function App() {
                     <Shuffle size={12} />
                     <span>Shuffle Play</span>
                   </button>
+                  <button 
+                    className="btn-secondary" 
+                    onClick={() => {
+                      const name = safePrompt("Enter new Playlist name (saved privately on your device):");
+                      if (name && name.trim()) handleCreatePlaylist(name.trim());
+                    }} 
+                    style={{ padding: '4px 10px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
+                    title="Create a new private playlist on your device"
+                  >
+                    <Plus size={12} />
+                    <span>Create Playlist</span>
+                  </button>
+                  {librarySongs.length > 0 && (
+                    <button 
+                      className="btn-secondary" 
+                      onClick={() => {
+                        const defaultName = `Liked Mix (${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})`;
+                        const name = safePrompt("Name your private playlist for these liked songs:", defaultName);
+                        if (name && name.trim()) {
+                          const songIds = librarySongs.map(s => s.id);
+                          handleCreatePlaylist(name.trim(), songIds);
+                        }
+                      }} 
+                      style={{ padding: '4px 10px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', color: 'var(--accent)', borderColor: 'rgba(56, 189, 248, 0.3)' }}
+                      title="Save all your liked songs into a private playlist on this device"
+                    >
+                      <ListMusic size={12} />
+                      <span>Save Liked as Playlist</span>
+                    </button>
+                  )}
                   {librarySongs.length > 0 && (
                     <button 
                       className="btn-secondary" 
