@@ -605,7 +605,7 @@ export async function enrichSongMetadata(song) {
         onError: () => resolve(song)
       });
     });
-  } catch (err) {
+  } catch (_err) {
     return song;
   }
 }

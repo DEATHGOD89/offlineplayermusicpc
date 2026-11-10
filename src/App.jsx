@@ -877,7 +877,7 @@ export default function App() {
         document.documentElement.style.setProperty('--glow-color-a', cA);
         document.documentElement.style.setProperty('--glow-color-b', cB);
         document.documentElement.style.setProperty('--glow-color-c', cC);
-      } catch (err) {
+      } catch (_err) {
         fallbackColors();
       }
     };
@@ -1427,7 +1427,7 @@ export default function App() {
     }
   };
 
-  const handleAudioError = (e) => {
+  const handleAudioError = (_e) => {
     const currentSrc = audioRef.current?.src || '';
     if (currentSrc.includes('/ipfs/')) {
       const match = currentSrc.match(/\/ipfs\/([a-zA-Z0-9]+)/);
