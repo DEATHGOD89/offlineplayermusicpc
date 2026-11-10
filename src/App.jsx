@@ -910,7 +910,6 @@ export default function App() {
   const [eqGains, setEqGains] = useState([0,0,0,0,0,0,0,0,0,0]);
   const [bassProfile, setBassProfile] = useState('Home Theater');
   const [subwooferLevel, setSubwooferLevel] = useState(50);
-  const [clarityLevel, setClarityLevel] = useState(50);
   const [volumeBoost, setVolumeBoost] = useState(1.0);
 
   // --- AUDIO CORE DOM ENDPOINTS ---
@@ -927,13 +926,56 @@ export default function App() {
   const sourceNodeRef = useRef(null);
   const analyserRef = useRef(null);
   const eqNodesRef = useRef([]);
+  const highPassRef = useRef(null);
   const subBassRef = useRef(null);
   const punchBassRef = useRef(null);
-  const clarityRef = useRef(null);
   const vocalProtectRef = useRef(null);
-  const limiterRef = useRef(null);
   const masterGainRef = useRef(null);
+  const limiterRef = useRef(null);
   const hasLoadedCloudRef = useRef(false);
+
+  const BASS_PROFILE_MAP = {
+    'Studio Bass': { sub: 6, punch: 4 },
+    'Home Theater': { sub: 12, punch: 8 },
+    'Car Bass': { sub: 16, punch: 10 },
+    'DJ Bass': { sub: 10, punch: 14 },
+    'Cinema Bass': { sub: 14, punch: 9 },
+    'Punjabi Bass': { sub: 14, punch: 12 },
+    'Workout Bass': { sub: 12, punch: 14 }
+  };
+
+  const applyDspGains = useCallback((subLevel, bProfile, vBoost, mobileMode) => {
+    const profile = BASS_PROFILE_MAP[bProfile] || BASS_PROFILE_MAP['Home Theater'];
+    // 50% = 1.0x (standard calibrated profile), 100% = 2.0x, 0% = 0.0x
+    const multiplier = subLevel / 50.0;
+
+    // Mobile Phone Speaker Optimization:
+    // Tiny phone speakers cannot produce <50Hz and distort if overloaded.
+    // We gently protect low-end while enhancing punch (110Hz) for smooth, warm, loud sound.
+    const subGain = mobileMode 
+      ? Math.min(8, profile.sub * multiplier * 0.65) 
+      : profile.sub * multiplier;
+    const punchGain = mobileMode 
+      ? profile.punch * multiplier * 1.15 
+      : profile.punch * multiplier;
+
+    if (highPassRef.current) {
+      highPassRef.current.frequency.value = mobileMode ? 45 : 20;
+    }
+    if (subBassRef.current) {
+      subBassRef.current.gain.value = subGain;
+      subBassRef.current.frequency.value = mobileMode ? 65 : 45;
+    }
+    if (punchBassRef.current) {
+      punchBassRef.current.gain.value = punchGain;
+    }
+    if (vocalProtectRef.current) {
+      vocalProtectRef.current.gain.value = (subGain > 5) ? 1.5 : 0.0;
+    }
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = vBoost;
+    }
+  }, []);
 
   const initAudioContext = () => {
     if (!audioCtxRef.current && audioRef.current) {
@@ -951,49 +993,53 @@ export default function App() {
       analyserRef.current = analyser;
 
       const freqs = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-      const nodes = freqs.map(freq => {
+      const nodes = freqs.map((freq, idx) => {
         const filter = ctx.createBiquadFilter();
         filter.type = 'peaking';
         filter.frequency.value = freq;
         filter.Q.value = 1.414;
-        filter.gain.value = 0;
+        filter.gain.value = eqGains[idx] || 0;
         return filter;
       });
       eqNodesRef.current = nodes;
 
+      // Sub-sonic rumble filter: Prevents phone speaker over-excursion, flapping, and distortion
+      const highPass = ctx.createBiquadFilter();
+      highPass.type = 'highpass';
+      highPass.frequency.value = isMobile ? 45 : 20;
+      highPass.Q.value = 0.707;
+      highPassRef.current = highPass;
+
       const subBass = ctx.createBiquadFilter();
       subBass.type = 'lowshelf';
-      subBass.frequency.value = 40;
+      subBass.frequency.value = isMobile ? 65 : 45;
       subBassRef.current = subBass;
 
       const punchBass = ctx.createBiquadFilter();
       punchBass.type = 'peaking';
-      punchBass.frequency.value = 120;
-      punchBass.Q.value = 1.0;
+      punchBass.frequency.value = 110;
+      punchBass.Q.value = 1.1;
       punchBassRef.current = punchBass;
 
       const vocalProtect = ctx.createBiquadFilter();
       vocalProtect.type = 'peaking';
       vocalProtect.frequency.value = 1500;
-      vocalProtect.Q.value = 1.0;
+      vocalProtect.Q.value = 0.9;
       vocalProtectRef.current = vocalProtect;
 
-      const clarity = ctx.createBiquadFilter();
-      clarity.type = 'highshelf';
-      clarity.frequency.value = 4000;
-      clarityRef.current = clarity;
-
-      const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = -1.0; // Prevent clipping
-      limiter.knee.value = 0.0;
-      limiter.ratio.value = 20.0;
-      limiter.attack.value = 0.005;
-      limiter.release.value = 0.050;
-      limiterRef.current = limiter;
-
       const masterGain = ctx.createGain();
-      masterGain.value = 1.0;
+      masterGain.value = volumeBoost;
       masterGainRef.current = masterGain;
+
+      // Studio Mastering Limiter: Placed AFTER masterGain to catch any volume boost peaks
+      // Soft-knee (12dB) with 200ms release completely eliminates pumping, chattering, and audio breaking
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -1.5;
+      limiter.knee.value = 12.0;
+      limiter.ratio.value = 12.0;
+      limiter.attack.value = 0.015;
+      limiter.release.value = 0.200;
+      limiterRef.current = limiter;
 
       let curr = source;
       curr.connect(analyser);
@@ -1003,48 +1049,25 @@ export default function App() {
         curr.connect(n);
         curr = n;
       });
-      curr.connect(vocalProtect);
-      vocalProtect.connect(clarity);
-      clarity.connect(subBass);
+      curr.connect(highPass);
+      highPass.connect(subBass);
       subBass.connect(punchBass);
-      punchBass.connect(limiter);
-      limiter.connect(masterGain);
-      masterGain.connect(ctx.destination);
+      punchBass.connect(vocalProtect);
+      vocalProtect.connect(masterGain);
+      masterGain.connect(limiter);
+      limiter.connect(ctx.destination);
+
+      // IMMEDIATELY apply default 50% bass and volume boost so user does NOT have to move slider!
+      applyDspGains(subwooferLevel, bassProfile, volumeBoost, isMobile);
     }
     if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
       audioCtxRef.current.resume();
     }
   };
 
-  const BASS_PROFILE_MAP = {
-    'Studio Bass': { sub: 6, punch: 4 },
-    'Home Theater': { sub: 16, punch: 10 },
-    'Car Bass': { sub: 20, punch: 14 },
-    'DJ Bass': { sub: 14, punch: 16 },
-    'Cinema Bass': { sub: 18, punch: 12 },
-    'Punjabi Bass': { sub: 18, punch: 16 },
-    'Workout Bass': { sub: 16, punch: 18 }
-  };
-
   useEffect(() => {
-    const profile = BASS_PROFILE_MAP[bassProfile] || BASS_PROFILE_MAP['Home Theater'];
-    const multiplier = subwooferLevel / 30.0;
-    
-    if (subBassRef.current) subBassRef.current.gain.value = profile.sub * multiplier;
-    if (punchBassRef.current) punchBassRef.current.gain.value = profile.punch * multiplier;
-    
-    if (clarityRef.current) {
-        clarityRef.current.gain.value = (clarityLevel / 100.0) * 12.0; 
-    }
-    
-    if (vocalProtectRef.current) {
-        vocalProtectRef.current.gain.value = (profile.sub * multiplier > 6) ? 2.0 : 0.0;
-    }
-    
-    if (masterGainRef.current) {
-        masterGainRef.current.gain.value = volumeBoost;
-    }
-  }, [bassProfile, subwooferLevel, clarityLevel, volumeBoost]);
+    applyDspGains(subwooferLevel, bassProfile, volumeBoost, isMobile);
+  }, [bassProfile, subwooferLevel, volumeBoost, isMobile, applyDspGains]);
 
   const handleEqChange = (idx, val) => {
     const newGains = [...eqGains];
@@ -2373,7 +2396,7 @@ export default function App() {
               <div>
                 <span className="folder-lbl" style={{ color: 'var(--secondary)' }}>PREMIUM DSP ENGINE</span>
                 <h2 style={{ fontSize: '1.5rem', marginBottom: '4px', marginTop: '4px' }}>Cinematic Audio Processor</h2>
-                <p style={{ color: 'var(--text-dark)', fontSize: '0.8rem' }}>Home theater quality bass, protected vocals, and distortion-free volume.</p>
+                <p style={{ color: 'var(--text-dark)', fontSize: '0.8rem' }}>Deep punchy bass, protected vocals, and distortion-free volume booster.</p>
               </div>
               <div style={{ width: '200px', height: '50px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)', background: '#150608' }}>
                 <canvas ref={canvasRef} width={200} height={50} style={{ width: '100%', height: '100%' }} />
@@ -2405,10 +2428,10 @@ export default function App() {
                 </div>
               </div>
 
-              {/* VOLUME BOOST */}
+              {/* VOLUME & SOUND INCREASE ENGINE */}
               <div className="bento-panel" style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-                <h4 style={{ marginBottom: '4px' }}>Volume & Clarity Engine</h4>
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-dark)', marginBottom: '12px' }}>Limiter-protected boost & high-end presence</p>
+                <h4 style={{ marginBottom: '4px' }}>Sound & Volume Booster</h4>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-dark)', marginBottom: '12px' }}>Limiter-protected distortion-free volume amplification</p>
                 
                 <div style={{ display: 'flex', gap: '4px', marginBottom: '16px' }}>
                   {[1.0, 1.25, 1.5, 1.75, 2.0].map(vol => (
@@ -2418,15 +2441,25 @@ export default function App() {
                       onClick={() => setVolumeBoost(vol)} 
                       style={{ flex: 1, padding: '6px 0', fontSize: '0.7rem', borderRadius: '8px', justifyContent: 'center' }}
                     >
-                      {vol * 100}%
+                      {vol === 1.0 ? '100%' : `${Math.round(vol * 100)}%`}
                     </button>
                   ))}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '0.75rem', width: '50px', color: 'var(--text-dark)' }}>Clarity</span>
-                  <input type="range" min="0" max="100" value={clarityLevel} onChange={(e) => setClarityLevel(parseInt(e.target.value))} style={{ flex: 1, accentColor: 'var(--secondary)' }} />
-                  <span style={{ fontWeight: 'bold', color: 'var(--secondary)', fontSize: '0.8rem', width: '30px' }}>{clarityLevel}%</span>
+                  <span style={{ fontSize: '0.75rem', width: '65px', color: 'var(--text-dark)' }}>Increase</span>
+                  <input 
+                    type="range" 
+                    min="100" 
+                    max="200" 
+                    step="5"
+                    value={Math.round(volumeBoost * 100)} 
+                    onChange={(e) => setVolumeBoost(parseFloat(e.target.value) / 100)} 
+                    style={{ flex: 1, accentColor: 'var(--secondary)' }} 
+                  />
+                  <span style={{ fontWeight: 'bold', color: 'var(--secondary)', fontSize: '0.8rem', width: '38px', textAlign: 'right' }}>
+                    {Math.round(volumeBoost * 100)}%
+                  </span>
                 </div>
               </div>
             </div>
