@@ -1863,7 +1863,7 @@ export default function App() {
   };
 
   // --- QUERY FILTERED LISTS ---
-  const getSortedSongs = (songsList) => {
+  const getSortedSongs = useCallback((songsList) => {
     const listCopy = [...songsList];
     if (currentSort === 'Date Added' || currentSort === 'Recently Added') {
       return listCopy.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
@@ -1881,7 +1881,7 @@ export default function App() {
       return listCopy.sort((a, b) => (a.album || '').localeCompare(b.album || ''));
     }
     return listCopy;
-  };
+  }, [currentSort]);
 
   // Filters by search query, mood badges, and active filters
   const filteredSongs = useMemo(() => {
@@ -1917,7 +1917,7 @@ export default function App() {
 
   const displaySongs = useMemo(() => {
     return getSortedSongs(filteredSongs);
-  }, [filteredSongs, currentSort]);
+  }, [filteredSongs, getSortedSongs]);
 
   const totalPlaylistDuration = useMemo(() => {
     return displaySongs.reduce((acc, s) => acc + (s.duration || 0), 0);

@@ -302,8 +302,9 @@ export async function saveBackground(bg) {
     
     const bgData = {
       id: bg.id || 'bg-custom-' + Date.now(),
-      name: bg.name || 'Custom Video',
+      name: bg.name || 'Custom Background',
       blob: bg.blob,
+      isImage: bg.isImage !== undefined ? bg.isImage : (bg.blob && bg.blob.type ? bg.blob.type.startsWith('image/') : false),
       addedAt: bg.addedAt || Date.now(),
     };
 
