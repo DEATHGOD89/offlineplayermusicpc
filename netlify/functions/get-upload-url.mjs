@@ -57,6 +57,41 @@ export const handler = async (event) => {
       };
     }
 
+    // Security: Block path traversal and restrict extensions
+    const cleanFileName = fileName.trim().replace(/^.*[\\/]/, '');
+    if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ error: 'Invalid fileName: path traversal characters detected.' })
+      };
+    }
+
+    const cleanFolder = folder === 'covers' ? 'covers' : 'songs';
+
+    // Security: Validate allowed MIME types and file extensions
+    const isAllowedAudio = cleanFolder === 'songs' && 
+      (contentType.startsWith('audio/') || contentType === 'application/octet-stream') &&
+      /\.(mp3|wav|m4a|aac|flac|ogg|opus|webm)$/i.test(cleanFileName);
+
+    const isAllowedImage = cleanFolder === 'covers' && 
+      contentType.startsWith('image/') &&
+      /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(cleanFileName);
+
+    if (!isAllowedAudio && !isAllowedImage) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ error: 'Disallowed file type or extension. Only standard audio and image files are permitted.' })
+      };
+    }
+
     const s3 = new S3Client({
       endpoint: 'https://s3.filebase.com',
       region: 'us-east-1',
@@ -67,8 +102,7 @@ export const handler = async (event) => {
       forcePathStyle: false
     });
 
-    const cleanFolder = folder === 'covers' ? 'covers' : 'songs';
-    const key = `${cleanFolder}/${fileName}`;
+    const key = `${cleanFolder}/${cleanFileName}`;
 
     const command = new PutObjectCommand({
       Bucket: bucket,
@@ -77,7 +111,8 @@ export const handler = async (event) => {
       ACL: 'public-read'
     });
 
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    // Security: Restrict presigned URL validity to 15 minutes (900 seconds)
+    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 900 });
     const publicUrl = `https://${bucket}.s3.filebase.io/${key}`;
 
     return {

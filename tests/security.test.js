@@ -71,3 +71,33 @@ test('Security: Valid upload request formats correctly', () => {
   assert.equal(valid.valid, true);
   assert.equal(valid.key, 'songs/song-123.mp3');
 });
+
+function validateFilebaseDeleteRequest(body) {
+  const { key, cid } = body || {};
+  if (!key && !cid) return { valid: false, error: 'Required key or cid' };
+  if (key && (key.includes('..') || (!key.startsWith('songs/') && !key.startsWith('covers/')))) {
+    return { valid: false, error: 'Path restricted to songs/ and covers/' };
+  }
+  if (cid && !/^[a-zA-Z0-9]{40,65}$/.test(cid)) {
+    return { valid: false, error: 'Invalid CID format' };
+  }
+  return { valid: true };
+}
+
+test('Security: S3 deletion blocks arbitrary key deletion outside vault folders', () => {
+  const res1 = validateFilebaseDeleteRequest({ key: '../root.txt' });
+  assert.equal(res1.valid, false);
+
+  const res2 = validateFilebaseDeleteRequest({ key: 'admin/secret.json' });
+  assert.equal(res2.valid, false);
+
+  const res3 = validateFilebaseDeleteRequest({ key: 'songs/track-123.mp3' });
+  assert.equal(res3.valid, true);
+
+  const res4 = validateFilebaseDeleteRequest({ cid: 'QmTYYThzZDPC75EmVt7Agmy4tTKUxHgKCSzHxHeUXeAHcs' });
+  assert.equal(res4.valid, true);
+
+  const res5 = validateFilebaseDeleteRequest({ cid: 'invalid*cid$$' });
+  assert.equal(res5.valid, false);
+});
+

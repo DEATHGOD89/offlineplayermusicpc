@@ -46,6 +46,26 @@ export const handler = async (event) => {
       };
     }
 
+    // Security: Restrict deletions strictly to songs/ and covers/ folders
+    if (key) {
+      if (key.includes('..') || (!key.startsWith('songs/') && !key.startsWith('covers/'))) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Invalid key: deletions restricted to songs/ and covers/ folders.' })
+        };
+      }
+    }
+
+    // Security: Validate IPFS CID format (alphanumeric 40-65 chars)
+    if (targetCid && !/^[a-zA-Z0-9]{40,65}$/.test(targetCid)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid CID format.' })
+      };
+    }
+
     const s3 = new S3Client({
       endpoint: 'https://s3.filebase.com',
       region: 'us-east-1',

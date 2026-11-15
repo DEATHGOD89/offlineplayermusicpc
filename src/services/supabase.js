@@ -116,12 +116,24 @@ export async function getCloudSongs() {
       isCloud: true
     }));
 
-    // 2. Automatically enrich any newly added track missing its cover artwork
+    // 2. Throttled background auto-enrichment (max 2 parallel workers to preserve audio streaming bandwidth)
     const needsEnrichment = formatted.filter(s => !s.coverUrl && s.url);
     if (needsEnrichment.length > 0) {
-      setTimeout(() => {
-        needsEnrichment.forEach(s => enrichSongMetadata(s));
-      }, 1000);
+      setTimeout(async () => {
+        const queue = [...needsEnrichment];
+        const CONCURRENCY_LIMIT = 2;
+        const workers = Array.from({ length: CONCURRENCY_LIMIT }, async () => {
+          while (queue.length > 0) {
+            const nextSong = queue.shift();
+            if (nextSong) {
+              try {
+                await enrichSongMetadata(nextSong);
+              } catch (_e) {}
+            }
+          }
+        });
+        await Promise.all(workers);
+      }, 1500);
     }
 
     try {

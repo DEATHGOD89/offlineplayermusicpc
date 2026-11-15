@@ -34,8 +34,16 @@ win-unpacked/
 builder-debug.yml
 .icon-ico/
 
-# Environment Variables
+# Environment Variables & Secrets
 .env
 .env.*
 !.env.example
+*.txt
+*pass*
+*secret*
+*token*
+*.pem
+*.key
+*.p12
+
 

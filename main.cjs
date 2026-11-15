@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 
 function createWindow() {
@@ -11,6 +11,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
       preload: path.join(__dirname, 'preload.cjs')
     },
   });
@@ -20,6 +22,22 @@ function createWindow() {
 
   // Remove default menu bar for a clean, premium desktop app appearance
   win.setMenuBarVisibility(false);
+
+  // Security: Prevent un-sandboxed window navigation away from local app
+  win.webContents.on('will-navigate', (event, navigationUrl) => {
+    if (!navigationUrl.startsWith('file://')) {
+      event.preventDefault();
+      shell.openExternal(navigationUrl);
+    }
+  });
+
+  // Security: Intercept window.open calls and route external links to OS browser
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
 }
 
 // Handle IPC messages for compact Mini-Player window resizing & positioning
